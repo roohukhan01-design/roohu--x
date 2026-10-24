@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- ring -->
+    <path
+        android:pathData="M26,54 A28,28 0 1,1 82,54 A28,28 0 1,1 26,54 Z"
+        android:strokeColor="#F5B544" android:strokeWidth="4.5" android:fillColor="#00000000" />
+    <!-- play mark -->
+    <path android:fillColor="#F5B544" android:pathData="M47,40 L47,68 L71,54 Z" />
+</vector>
