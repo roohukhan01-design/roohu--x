@@ -129,7 +129,7 @@ class DownloadCoordinator(
             lock.withLock {
                 val free = settings.settings.first().maxSimultaneous - jobs.size
                 if (free <= 0) return@withLock
-                dao.byStatus(DownloadStatus.QUEUED).filter { it.id !in jobs }.take(free).forEach { start(it.id) }
+                dao.byStatus(DownloadStatus.QUEUED).filter { !jobs.containsKey(it.id) }.take(free).forEach { start(it.id) }
             }
         }
     }
