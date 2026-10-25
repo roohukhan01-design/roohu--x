@@ -19,13 +19,32 @@ object MediaClassifier {
     fun classify(url: String): DetectedMedia? {
         val http = url.toHttpUrlOrNull() ?: return null
         val last = http.pathSegments.lastOrNull().orEmpty()
-        val kind = when (extensionOf(last)) {
+        val extensionKind = when (extensionOf(last)) {
             in VIDEO_EXT -> MediaKind.DIRECT_VIDEO
             in AUDIO_EXT -> MediaKind.DIRECT_AUDIO
             in PLAYLIST_EXT -> MediaKind.STREAM_PLAYLIST
-            else -> return null
+            else -> null
         }
-        return DetectedMedia(url, kind, FileNames.sanitize(last))
+        val kind = extensionKind ?: classifyByDeclaredFormat(http.queryParameterNames.associateWith { key -> http.queryParameterValues(key).lastOrNull().orEmpty() }) ?: return null
+        val fallbackName = when (kind) {
+            MediaKind.STREAM_PLAYLIST -> "stream-playlist"
+            MediaKind.DIRECT_AUDIO -> "audio"
+            else -> "video"
+        }
+        return DetectedMedia(url, kind, FileNames.sanitize(last.ifBlank { fallbackName }, fallbackName))
+    }
+
+    /** Detects common explicit format hints when a server hides the media extension. */
+    private fun classifyByDeclaredFormat(parameters: Map<String, String>): MediaKind? {
+        val hints = parameters.entries.joinToString(" ") { (key, value) -> "$key=$value" }.lowercase()
+        return when {
+            "application/vnd.apple.mpegurl" in hints || "application/x-mpegurl" in hints ||
+                "format=m3u8" in hints || "type=m3u8" in hints -> MediaKind.STREAM_PLAYLIST
+            "application/dash+xml" in hints || "format=mpd" in hints || "type=mpd" in hints -> MediaKind.STREAM_PLAYLIST
+            "video/mp4" in hints || "format=mp4" in hints -> MediaKind.DIRECT_VIDEO
+            "audio/mpeg" in hints || "audio/mp4" in hints || "format=mp3" in hints || "format=m4a" in hints -> MediaKind.DIRECT_AUDIO
+            else -> null
+        }
     }
 
     /** Classifies a URL found on a <video>/<audio> element ([tag] is "video" or "audio"). */
