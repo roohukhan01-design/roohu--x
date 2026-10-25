@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class EnqueueResult(val id: Long, val alreadyExists: Boolean)
 
@@ -39,15 +40,16 @@ class DownloadCoordinator(
     /** Refuses to create a second copy of a download that is already queued/running/paused. */
     suspend fun enqueue(url: String, referer: String? = null, userAgent: String? = null): EnqueueResult =
         enqueueLock.withLock {
-            val open = dao.findOpenByUrl(url)
+            val downloadUrl = normalizeKnownFileShareUrl(url)
+            val open = dao.findOpenByUrl(downloadUrl)
             if (open != null) {
                 if (open.status == DownloadStatus.PAUSED) resume(open.id)
                 return@withLock EnqueueResult(open.id, alreadyExists = true)
             }
             val id = dao.insert(
                 DownloadEntity(
-                    url = url,
-                    fileName = FileNames.fromUrl(url),
+                    url = downloadUrl,
+                    fileName = FileNames.fromUrl(downloadUrl),
                     referer = referer,
                     userAgent = userAgent,
                     createdAt = System.currentTimeMillis(),
@@ -62,6 +64,29 @@ class DownloadCoordinator(
             jobs[id]?.cancelAndJoin()
             dao.setStatusIfActive(id, DownloadStatus.PAUSED, null, null)
         }
+    }
+
+    /**
+     * Convert common Google Drive share/preview links to the documented direct-download endpoint.
+     * This only works for files the current user is allowed to download; Drive may still require
+     * confirmation/authentication for large, restricted, or abuse-scanned files.
+     */
+    private fun normalizeKnownFileShareUrl(raw: String): String {
+        val uri = raw.toHttpUrlOrNull() ?: return raw
+        val host = uri.host.lowercase()
+        if (host != "drive.google.com" && host != "www.drive.google.com") return raw
+        val path = uri.encodedPath
+        val id = Regex("""/file/d/([^/]+)""").find(path)?.groupValues?.getOrNull(1)
+            ?: uri.queryParameter("id")
+            ?: return raw
+        if (id.isBlank()) return raw
+        return uri.newBuilder()
+            .encodedPath("/uc")
+            .query(null)
+            .addQueryParameter("export", "download")
+            .addQueryParameter("id", id)
+            .build()
+            .toString()
     }
 
     /** Pauses everything (used when Android's foreground-service time limit is hit). */
