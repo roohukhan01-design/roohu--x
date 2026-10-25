@@ -137,6 +137,17 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
                                 Text(recent.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                                 Text(if (recent.isVideo) "Video" else "Audio", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            TextButton(
+                                onClick = {
+                                    val updated = recentPlayed.filterNot { it.uri == recent.uri }
+                                    recentPlayed = updated
+                                    val json = JSONArray().apply {
+                                        updated.forEach { put(JSONObject().put("uri", it.uri).put("title", it.title).put("video", it.isVideo)) }
+                                    }
+                                    historyPrefs.edit().putString("data", json.toString()).apply()
+                                },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            ) { Text("×") }
                         }
                     }
                 }
