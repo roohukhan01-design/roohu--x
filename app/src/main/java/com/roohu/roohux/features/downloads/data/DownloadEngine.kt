@@ -150,6 +150,14 @@ class DownloadEngine(
         val body = resp.body ?: throw DownloadException(DownloadError.SERVER_REJECTED, "Empty response")
         val contentType = resp.header("Content-Type")
         val ctype = contentType?.substringBefore(';')?.trim()?.lowercase()
+        // Reject server landing/error pages before trusting their URL or Content-Disposition filename.
+        // File-sharing services sometimes return HTML confirmation pages with a misleading filename.
+        if (ctype == "text/html" || ctype == "application/xhtml+xml" || ctype == "application/vnd.yt-ump") {
+            throw DownloadException(
+                DownloadError.NOT_A_FILE,
+                "The server returned a webpage, not the media file. Open the page and use its official download option, then retry the resulting direct link.",
+            )
+        }
 
         var start = existing
         val total: Long
