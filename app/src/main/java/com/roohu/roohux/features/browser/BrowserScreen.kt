@@ -85,6 +85,7 @@ private fun BrowserContent(manager: BrowserManager, tab: BrowserTab, onNavigate:
         ) {
             @Composable fun item(label: String, action: () -> Unit) = DropdownMenuItem(text = { Text(label) }, onClick = { menuOpen = false; action() })
             item("New tab") { manager.newTab() }
+            if (!tab.blank) item("Find media / Download") { panel = BrowserPanel.MEDIA }
             if (!tab.blank) {
                 item(if (bookmarked) "Remove bookmark" else "Add bookmark") { manager.toggleBookmark(tab) }
                 item("Find in page") { finding = true }
