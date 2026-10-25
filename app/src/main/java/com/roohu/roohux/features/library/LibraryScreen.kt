@@ -22,7 +22,7 @@ import com.roohu.roohux.core.design.formatBytes
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isVideo: Boolean) -> Unit, modifier: Modifier = Modifier) {
+fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isVideo: Boolean) -> Unit, onPlayAudioQueue: (List<Pair<String, String>>) -> Unit, modifier: Modifier = Modifier) {
     val libraryItems by vm.items.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val sort by vm.sort.collectAsStateWithLifecycle()
@@ -61,6 +61,12 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         }
 
         val list = libraryItems
+        val audioTracks = list.orEmpty().filter { !it.isVideo }.map { it.uri to it.title }
+        if (audioTracks.isNotEmpty()) {
+            Button(onClick = { onPlayAudioQueue(audioTracks) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Play all audio (${audioTracks.size})")
+            }
+        }
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { PulsingDots() }
             list.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
