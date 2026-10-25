@@ -50,10 +50,15 @@ object MediaClassifier {
     /** Classifies a URL found on a <video>/<audio> element ([tag] is "video" or "audio"). */
     fun classifyElement(url: String, tag: String): DetectedMedia? {
         if (url.startsWith("blob:", ignoreCase = true)) return DetectedMedia(url, MediaKind.BLOB, "Blob stream")
+        // Do not label every URL attached to a <video>/<audio> element as a file.
+        // File-sharing preview pages and player endpoints often expose HTML/internal URLs here.
+        // Only classify extensionless media when the URL itself explicitly declares a known format.
         classify(url)?.let { return it }
         val http = url.toHttpUrlOrNull() ?: return null
-        val kind = if (tag.equals("audio", ignoreCase = true)) MediaKind.DIRECT_AUDIO else MediaKind.DIRECT_VIDEO
-        val name = FileNames.sanitize(http.pathSegments.lastOrNull().orEmpty(), "media")
-        return DetectedMedia(url, kind, name)
+        val declared = classifyByDeclaredFormat(
+            http.queryParameterNames.associateWith { key -> http.queryParameterValues(key).lastOrNull().orEmpty() },
+        ) ?: return null
+        val name = FileNames.sanitize(http.pathSegments.lastOrNull().orEmpty(), if (declared == MediaKind.DIRECT_AUDIO) "audio" else "video")
+        return DetectedMedia(url, declared, name)
     }
 }
