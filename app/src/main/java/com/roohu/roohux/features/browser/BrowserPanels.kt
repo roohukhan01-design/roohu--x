@@ -149,10 +149,22 @@ private fun MediaRow(m: DetectedMedia, probe: MediaProbe?, onDownload: () -> Uni
             val size = probe?.sizeBytes?.let { formatBytes(it) } ?: "size unknown"
             Text(if (m.kind == MediaKind.DIRECT_VIDEO || m.kind == MediaKind.DIRECT_AUDIO) "$kind · $size" + (probe?.contentType?.let { " · $it" } ?: "") else kind,
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val type = probe?.contentType?.substringBefore(';')?.trim()?.lowercase().orEmpty()
+            val isHtml = type == "text/html" || type == "application/xhtml+xml"
+            val isYouTubeInternal = type.contains("yt-ump") || type.contains("googlevideo") && type.contains("html")
+            val rejectedAsPage = isHtml || isYouTubeInternal
             when (m.kind) {
-                MediaKind.DIRECT_VIDEO, MediaKind.DIRECT_AUDIO -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onDownload) { Text("Download") }
-                    OutlinedButton(onPlay) { Text("Play") }
+                MediaKind.DIRECT_VIDEO, MediaKind.DIRECT_AUDIO -> {
+                    if (rejectedAsPage) {
+                        Text(
+                            if (isYouTubeInternal) "This is an internal streaming response, not a normal media file. RoohuX cannot save it as a direct download." else "The server returned a web page instead of a media file. The download is hidden to avoid saving an HTML error/confirmation page as a video.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onDownload) { Text("Download") }
+                        OutlinedButton(onPlay) { Text("Play") }
+                    }
                 }
                 MediaKind.STREAM_PLAYLIST -> {
                     Text("Saving playlists isn't supported, and the stream may be protected. You can try playing it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
