@@ -132,6 +132,28 @@ class PlayerConnection(context: Context, private val history: PlaybackHistory) {
         }
     }
 
+    /** Loads an actual Media3 audio queue. Next/previous and shuffle work through the service. */
+    fun playAudioQueue(tracks: List<Pair<String, String>>, autoplay: Boolean) {
+        val valid = tracks.filter { it.first.isNotBlank() }.distinctBy { it.first }
+        if (valid.isEmpty()) return
+        val c = controller
+        if (c == null) {
+            pending = Request(valid.first().first, valid.first().second, false, autoplay)
+            connect()
+            return
+        }
+        setSleepTimer(0)
+        val media = valid.map { (uri, name) ->
+            MediaItem.Builder().setMediaId(uri).setUri(uri)
+                .setMediaMetadata(MediaMetadata.Builder().setTitle(name)
+                    .setExtras(Bundle().apply { putBoolean(EXTRA_VIDEO, false) }).build()).build()
+        }
+        c.setMediaItems(media)
+        c.prepare()
+        c.playWhenReady = autoplay
+        syncFrom(c)
+    }
+
     fun togglePlay() {
         val c = controller ?: return
         if (c.isPlaying) c.pause() else {
