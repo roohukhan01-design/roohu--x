@@ -6,6 +6,8 @@ import org.json.JSONObject
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as rowItems
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -31,6 +33,7 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
     val filter by vm.filter.collectAsStateWithLifecycle()
     val favOnly by vm.favoritesOnly.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var selectedFolder by remember { mutableStateOf<String?>(null) }
     var pendingRemove by remember { mutableStateOf<LibraryItem?>(null) }
     val playlistPrefs = remember(context) { context.getSharedPreferences("roohux_playlists", 0) }
     var playlists by remember { mutableStateOf(readPlaylists(playlistPrefs.getString("data", "[]"))) }
@@ -103,7 +106,27 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
             LibSort.entries.forEach { s -> FilterChip(sort == s, { vm.sort.value = s }, { Text(s.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
         }
 
-        val list = libraryItems
+        val allItems = libraryItems
+        val folders = remember(allItems) {
+            allItems.orEmpty().groupBy { item ->
+                try {
+                    val path = android.net.Uri.parse(item.uri).path.orEmpty()
+                    path.substringBeforeLast('/', "Device media").substringAfterLast('/').ifBlank { "Device media" }
+                } catch (_: Exception) { "Device media" }
+            }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Folders", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            if (selectedFolder != null) TextButton(onClick = { selectedFolder = null }) { Text("All folders") }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { FilterChip(selectedFolder == null, { selectedFolder = null }, label = { Text("All media") }) }
+            rowItems(folders.entries.toList(), key = { it.key }) { entry ->
+                FilterChip(selectedFolder == entry.key, { selectedFolder = if (selectedFolder == entry.key) null else entry.key },
+                    label = { Text(entry.key + " (" + entry.value.size + ")", maxLines = 1) })
+            }
+        }
+        val list = allItems?.let { items -> if (selectedFolder == null) items else folders[selectedFolder].orEmpty() }
         val audioTracks = list.orEmpty().filter { !it.isVideo }.map { it.uri to it.title }
         if (audioTracks.isNotEmpty()) {
             Button(onClick = { onPlayAudioQueue(audioTracks) }, modifier = Modifier.fillMaxWidth()) {
