@@ -48,6 +48,32 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         playlistPrefs.edit().putString("data", data.toString()).apply()
     }
 
+    val backup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) try {
+            val data = JSONObject().put("format", "roohux-playlists-v1").put("playlists", JSONArray().apply {
+                playlists.forEach { put(JSONObject().put("name", it.name).put("uris", JSONArray(it.uris))) }
+            })
+            context.contentResolver.openOutputStream(uri)?.use { it.write(data.toString().toByteArray(Charsets.UTF_8)) }
+        } catch (_: Exception) { android.widget.Toast.makeText(context, "Backup failed", android.widget.Toast.LENGTH_SHORT).show() }
+    }
+    val restore = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) try {
+            val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+            if (raw.length > 2000000) throw IllegalArgumentException()
+            val root = JSONObject(raw)
+            if (root.optString("format") != "roohux-playlists-v1") throw IllegalArgumentException()
+            val imported = readPlaylists(root.getJSONArray("playlists").toString())
+            if (imported.size > 500 || imported.any { it.uris.size > 10000 }) throw IllegalArgumentException()
+            val merged = playlists.toMutableList()
+            imported.forEach { item ->
+                val index = merged.indexOfFirst { it.name.equals(item.name, true) }
+                if (index >= 0) merged[index] = merged[index].copy(uris = (merged[index].uris + item.uris).distinct())
+                else merged.add(item)
+            }
+            savePlaylists(merged)
+        } catch (_: Exception) { android.widget.Toast.makeText(context, "Restore failed: invalid file", android.widget.Toast.LENGTH_SHORT).show() }
+    }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) vm.addFromDevice(context, uris)
     }
@@ -86,6 +112,8 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Playlists", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { backup.launch("RoohuX-playlists.json") }, enabled = playlists.isNotEmpty()) { Text("Backup") }
+            TextButton(onClick = { restore.launch(arrayOf("application/json")) }) { Text("Restore") }
             TextButton(onClick = { newPlaylistName = ""; creatingPlaylist = true }) { Text("+ New") }
         }
         playlists.forEach { playlist ->
