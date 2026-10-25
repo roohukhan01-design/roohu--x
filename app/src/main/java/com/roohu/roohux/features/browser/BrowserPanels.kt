@@ -144,7 +144,7 @@ private fun MediaRow(m: DetectedMedia, probe: MediaProbe?, onDownload: () -> Uni
                     Text("Saving playlists isn't supported, and the stream may be protected. You can try playing it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedButton(onPlay) { Text("Try playing") }
                 }
-                MediaKind.BLOB -> Text("Sites use blob streams for segmented or protected video. RoohuX can't save or play these.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                MediaKind.BLOB -> Text("This is a temporary browser stream, not a video file link. RoohuX cannot download this blob directly. Try the website's official Download/Offline option, or use a direct media-file link when the site provides one. DRM-protected streams cannot be saved here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
