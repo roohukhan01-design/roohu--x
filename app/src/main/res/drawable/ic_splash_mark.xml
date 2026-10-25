@@ -1,10 +1,19 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
-    <!-- ring -->
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
     <path
-        android:pathData="M26,54 A28,28 0 1,1 82,54 A28,28 0 1,1 26,54 Z"
-        android:strokeColor="#F5B544" android:strokeWidth="4.5" android:fillColor="#00000000" />
-    <!-- play mark -->
-    <path android:fillColor="#F5B544" android:pathData="M47,40 L47,68 L71,54 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#F5B544"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M31,76 L31,32 L51,32 C63,32 67,47 56,53 L31,53 M48,53 L68,76" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F5B544"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M69,33 L49,54 L69,75" />
 </vector>
