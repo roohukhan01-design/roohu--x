@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         // Releases the MediaController (no leak). Audio keeps playing in the service; video is paused.
-        (application as RoohuXApp).container.player.release()
+        if (!isInPictureInPictureMode) (application as RoohuXApp).container.player.release()
         super.onStop()
     }
 }
