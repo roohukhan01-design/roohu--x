@@ -101,6 +101,7 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
     var interaction by remember { mutableIntStateOf(0) }
     var locked by remember { mutableStateOf(false) }
     var zoom by remember { mutableFloatStateOf(1f) }
+    var temporaryFastForward by remember { mutableStateOf(false) }
     val playerPrefs = remember(context) { context.getSharedPreferences("roohux_video_player", Context.MODE_PRIVATE) }
     var fit by remember { mutableStateOf(FitMode.entries.getOrElse(playerPrefs.getInt("fit_mode", 0)) { FitMode.FIT }) }
     var speed by remember { mutableFloatStateOf(playerPrefs.getFloat("playback_speed", 1f).takeIf { it in 0.25f..3f } ?: 1f) }
@@ -194,6 +195,21 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
                 }
                 .pointerInput(locked) {
                     detectTapGestures(
+                        onPress = {
+                            tryAwaitRelease()
+                            if (temporaryFastForward) {
+                                conn.controller?.setPlaybackSpeed(speed)
+                                temporaryFastForward = false
+                                hud = null
+                            }
+                        },
+                        onLongPress = {
+                            if (!locked && !inPip && conn.controller != null) {
+                                temporaryFastForward = true
+                                conn.controller?.setPlaybackSpeed(2f)
+                                showHud("2x · Release to restore")
+                            }
+                        },
                         onTap = { controlsVisible = !controlsVisible; interaction++ },
                         onDoubleTap = { offset ->
                             if (!locked) {
@@ -366,7 +382,7 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                     FitMode.entries.forEach { m -> FilterChip(fit == m, { fit = m }, { Text(m.label) }) }
                 }
-                Text("Tip: pinch with two fingers to zoom up to 3x. Swipe the left side of the video for brightness, the right side for volume, sideways to seek, and double-tap to skip 10 s.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Tip: hold the video for temporary 2x speed. Pinch with two fingers to zoom up to 3x. Swipe the left side of the video for brightness, the right side for volume, sideways to seek, and double-tap to skip 10 s.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
