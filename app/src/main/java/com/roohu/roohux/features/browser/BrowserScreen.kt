@@ -92,6 +92,7 @@ private fun BrowserContent(manager: BrowserManager, tab: BrowserTab, onNavigate:
                 item(if (tab.desktop) "Desktop site: on (tap for mobile)" else "Desktop site: off (tap to enable)") { manager.setDesktop(tab, !tab.desktop) }
                 item("Share page") { sharePage(context, tab.url) }
                 item("Copy link") { copyLink(context, tab.url); manager.say("Link copied.") }
+                item("Media & downloads") { panel = BrowserPanel.MEDIA }
                 item("Open in another app") { openElsewhere(context, tab.url, manager) }
             }
             HorizontalDivider()
