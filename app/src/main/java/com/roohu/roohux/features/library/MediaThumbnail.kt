@@ -51,7 +51,7 @@ internal fun MediaThumbnail(item: LibraryItem, modifier: Modifier = Modifier) {
             } catch (_: Exception) { null }
         }
     }
-    Box(modifier.size(width = 88.dp, height = 64.dp).clip(RoundedCornerShape(10.dp))
+    Box(modifier.size(width = 64.dp, height = 48.dp).clip(RoundedCornerShape(8.dp))
         .background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = if (item.isVideo) "Video thumbnail" else "Album artwork", modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
         else Text(if (item.isVideo) "VIDEO" else "AUDIO", style = MaterialTheme.typography.labelSmall)
