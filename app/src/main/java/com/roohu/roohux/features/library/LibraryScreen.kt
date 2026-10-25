@@ -36,6 +36,8 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
     var playlists by remember { mutableStateOf(readPlaylists(playlistPrefs.getString("data", "[]"))) }
     var newPlaylistName by remember { mutableStateOf("") }
     var creatingPlaylist by remember { mutableStateOf(false) }
+    var editingPlaylist by remember { mutableStateOf<String?>(null) }
+    var managingPlaylist by remember { mutableStateOf<String?>(null) }
     var addingSong by remember { mutableStateOf<LibraryItem?>(null) }
     fun savePlaylists(updated: List<SavedPlaylist>) {
         playlists = updated
@@ -96,6 +98,7 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
                     Text("${tracks.size} available songs", style = MaterialTheme.typography.bodySmall)
                 }
                 TextButton(onClick = { onPlayAudioQueue(tracks) }, enabled = tracks.isNotEmpty()) { Text("Play") }
+                TextButton(onClick = { managingPlaylist = playlist.name }) { Text("Edit") }
                 TextButton(onClick = { savePlaylists(playlists.filterNot { it.name == playlist.name }) }) { Text("Delete") }
             }
         }
@@ -132,6 +135,60 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         }
     }
 
+    managingPlaylist?.let { name ->
+        val playlist = playlists.firstOrNull { it.name == name }
+        if (playlist != null) AlertDialog(
+            onDismissRequest = { managingPlaylist = null },
+            title = { Text(playlist.name) },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        newPlaylistName = playlist.name
+                        editingPlaylist = playlist.name
+                        managingPlaylist = null
+                    }) { Text("Rename playlist") }
+                    playlist.uris.forEachIndexed { index, uri ->
+                        Text(libraryItems.orEmpty().firstOrNull { it.uri == uri }?.title ?: "Unavailable song")
+                        Row {
+                            TextButton(onClick = {
+                                if (index > 0) {
+                                    val changed = playlist.uris.toMutableList()
+                                    java.util.Collections.swap(changed, index, index - 1)
+                                    savePlaylists(playlists.map { if (it.name == name) it.copy(uris = changed) else it })
+                                }
+                            }, enabled = index > 0) { Text("Up") }
+                            TextButton(onClick = {
+                                if (index < playlist.uris.lastIndex) {
+                                    val changed = playlist.uris.toMutableList()
+                                    java.util.Collections.swap(changed, index, index + 1)
+                                    savePlaylists(playlists.map { if (it.name == name) it.copy(uris = changed) else it })
+                                }
+                            }, enabled = index < playlist.uris.lastIndex) { Text("Down") }
+                            TextButton(onClick = {
+                                savePlaylists(playlists.map { if (it.name == name) it.copy(uris = it.uris.filterIndexed { i, _ -> i != index }) else it })
+                            }) { Text("Remove") }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton({ managingPlaylist = null }) { Text("Done") } },
+        )
+    }
+    editingPlaylist?.let { original ->
+        AlertDialog(
+            onDismissRequest = { editingPlaylist = null },
+            title = { Text("Rename playlist") },
+            text = { OutlinedTextField(newPlaylistName, { newPlaylistName = it }, label = { Text("New name") }) },
+            confirmButton = { TextButton(onClick = {
+                val name = newPlaylistName.trim()
+                if (name.isNotEmpty() && playlists.none { it.name.equals(name, true) && it.name != original }) {
+                    savePlaylists(playlists.map { if (it.name == original) it.copy(name = name) else it })
+                    editingPlaylist = null
+                }
+            }) { Text("Save") } },
+            dismissButton = { TextButton({ editingPlaylist = null }) { Text("Cancel") } },
+        )
+    }
     if (creatingPlaylist) {
         AlertDialog(
             onDismissRequest = { creatingPlaylist = false },
