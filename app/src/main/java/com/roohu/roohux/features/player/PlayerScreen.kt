@@ -76,6 +76,7 @@ private fun AudioPlayer(conn: PlayerConnection, onBack: () -> Unit) {
     var duration by remember { mutableLongStateOf(0L) }
     var dragging by remember { mutableStateOf<Float?>(null) }
     var speed by remember(controller) { mutableFloatStateOf(controller?.playbackParameters?.speed ?: 1f) }
+    var shuffle by remember(controller) { mutableStateOf(controller?.shuffleModeEnabled == true) }
     var repeatOne by remember(controller) { mutableStateOf(controller?.repeatMode == Player.REPEAT_MODE_ONE) }
     var sleepMenu by remember { mutableStateOf(false) }
 
@@ -128,11 +129,11 @@ private fun AudioPlayer(conn: PlayerConnection, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(Spacing.m))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.l), verticalAlignment = Alignment.CenterVertically) {
-            TextButton({ controller?.seekBack() }) { Text("−10 s") }
+            TextButton({ if (controller?.hasPreviousMediaItem() == true) controller.seekToPreviousMediaItem() else controller?.seekBack() }) { Text("Previous") }
             FilledIconButton({ conn.togglePlay() }, Modifier.size(72.dp)) {
                 PlayPauseGlyph(conn.isPlaying, MaterialTheme.colorScheme.onPrimary, glyphSize = 36.dp)
             }
-            TextButton({ controller?.seekForward() }) { Text("+10 s") }
+            TextButton({ if (controller?.hasNextMediaItem() == true) controller.seekToNextMediaItem() else controller?.seekForward() }) { Text("Next") }
         }
         Spacer(Modifier.height(Spacing.l))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s), verticalAlignment = Alignment.CenterVertically) {
@@ -145,6 +146,11 @@ private fun AudioPlayer(conn: PlayerConnection, onBack: () -> Unit) {
                     controller?.setPlaybackSpeed(next)
                 },
                 label = { Text("${speed}x") },
+            )
+            FilterChip(
+                selected = shuffle,
+                onClick = { shuffle = !shuffle; controller?.shuffleModeEnabled = shuffle },
+                label = { Text(if (shuffle) "Shuffle: on" else "Shuffle: off") },
             )
             FilterChip(
                 selected = repeatOne,
