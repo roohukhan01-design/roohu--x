@@ -117,6 +117,8 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         if (recentPlayed.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Recently played", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                val recentAudio = recentPlayed.filterNot { it.isVideo }.map { it.uri to it.title }
+                TextButton(onClick = { if (recentAudio.isNotEmpty()) onPlayAudioQueue(recentAudio) }, enabled = recentAudio.isNotEmpty()) { Text("Play audio") }
                 TextButton(onClick = {
                     recentPlayed = emptyList()
                     historyPrefs.edit().putString("data", "[]").apply()
