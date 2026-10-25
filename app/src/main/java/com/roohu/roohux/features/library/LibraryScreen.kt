@@ -141,7 +141,10 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
                 items(list, key = { it.uri }) { item ->
                     GlassCard(Modifier.fillMaxWidth()) {
-                        Text(item.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            MediaThumbnail(item)
+                            Text(item.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
                         Text(
                             (if (item.isVideo) "Video" else "Audio") + " · " + formatBytes(item.size) + if (item.downloadId == null) " · from device" else "",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
