@@ -141,18 +141,17 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
                 items(list, key = { it.uri }) { item ->
                     GlassCard(Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             MediaThumbnail(item)
-                            Text(item.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(item.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Text(
                             (if (item.isVideo) "Video" else "Audio") + " · " + formatBytes(item.size) + if (item.downloadId == null) " · from device" else "",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             TextButton({ onPlay(item.uri, item.title, item.isVideo) }) { Text("Play") }
                             if (!item.isVideo) TextButton({ addingSong = item }) { Text("Add to playlist") }
-                            TextButton({ vm.toggleFavorite(item) }) { Text(if (item.favorite) "Unfavorite" else "Favorite") }
                             TextButton({
                                 val send = Intent(Intent.ACTION_SEND).setType(item.mime.ifBlank { "*/*" })
                                     .putExtra(Intent.EXTRA_STREAM, item.uri.toUri()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
