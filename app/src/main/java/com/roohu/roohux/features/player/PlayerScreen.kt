@@ -2,6 +2,14 @@ package com.roohu.roohux.features.player
 
 import android.content.pm.ActivityInfo
 import android.graphics.Color as AndroidColor
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.view.View
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -100,10 +108,7 @@ private fun AudioPlayer(conn: PlayerConnection, onBack: () -> Unit) {
             Text("Now playing", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.weight(1f))
-        // No fabricated album art: a calm brand visual stands in.
-        Surface(Modifier.size(260.dp), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-            Box(contentAlignment = Alignment.Center) { HoloOrb(Modifier.size(220.dp)) }
-        }
+        NowPlayingArtwork(conn.currentUri)
         Spacer(Modifier.height(Spacing.xl))
         Text(conn.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.weight(1f))
@@ -180,5 +185,33 @@ private fun AudioPlayer(conn: PlayerConnection, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(Spacing.xxl).navigationBarsPadding())
+    }
+}
+
+@Composable
+private fun NowPlayingArtwork(uri: String?) {
+    val context = LocalContext.current
+    val art by produceState<android.graphics.Bitmap?>(initialValue = null, key1 = uri) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                val source = uri ?: return@withContext null
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, Uri.parse(source))
+                    val bytes = retriever.embeddedPicture ?: return@withContext null
+                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                    var sample = 1
+                    while (options.outWidth / sample > 600 || options.outHeight / sample > 600) sample *= 2
+                    options.inJustDecodeBounds = false
+                    options.inSampleSize = sample
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                } finally { retriever.release() }
+            } catch (_: Exception) { null }
+        }
+    }
+    Surface(Modifier.size(260.dp), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        if (art != null) Image(art!!.asImageBitmap(), contentDescription = "Album artwork", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else Box(contentAlignment = Alignment.Center) { HoloOrb(Modifier.size(220.dp)) }
     }
 }
