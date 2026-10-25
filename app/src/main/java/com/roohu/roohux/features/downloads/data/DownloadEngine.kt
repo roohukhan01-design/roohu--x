@@ -152,11 +152,21 @@ class DownloadEngine(
         val ctype = contentType?.substringBefore(';')?.trim()?.lowercase()
         // Reject server landing/error pages before trusting their URL or Content-Disposition filename.
         // File-sharing services sometimes return HTML confirmation pages with a misleading filename.
-        if (ctype == "text/html" || ctype == "application/xhtml+xml" || ctype == "application/vnd.yt-ump") {
+        if (ctype == "application/vnd.yt-ump" || ctype?.contains("yt-ump") == true) {
             throw DownloadException(
                 DownloadError.NOT_A_FILE,
-                "The server returned a webpage, not the media file. Open the page and use its official download option, then retry the resulting direct link.",
+                "This is an internal YouTube streaming response, not a normal downloadable file. RoohuX cannot save this stream as a direct download. Use the service's official download option where available.",
             )
+        }
+        if (ctype == "text/html" || ctype == "application/xhtml+xml") {
+            val host = resp.request.url.host.lowercase()
+            val detail = when {
+                host == "drive.google.com" || host.endsWith(".drive.google.com") ->
+                    "Google Drive returned a webpage instead of the file. Check that the file is public and downloadable, then open the Drive page and complete any confirmation or sign-in step. Retry using the actual file download link."
+                else ->
+                    "The server returned a webpage instead of the media file. It may require sign-in, a confirmation step, or a direct file URL. Open the page and use its official download option, then retry the resulting file link."
+            }
+            throw DownloadException(DownloadError.NOT_A_FILE, detail)
         }
 
         var start = existing
