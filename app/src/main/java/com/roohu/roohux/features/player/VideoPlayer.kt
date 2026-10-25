@@ -11,6 +11,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -25,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -89,6 +91,7 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
     var controlsVisible by remember { mutableStateOf(true) }
     var interaction by remember { mutableIntStateOf(0) }
     var locked by remember { mutableStateOf(false) }
+    var zoom by remember { mutableFloatStateOf(1f) }
     val playerPrefs = remember(context) { context.getSharedPreferences("roohux_video_player", Context.MODE_PRIVATE) }
     var fit by remember { mutableStateOf(FitMode.entries.getOrElse(playerPrefs.getInt("fit_mode", 0)) { FitMode.FIT }) }
     var speed by remember { mutableFloatStateOf(playerPrefs.getFloat("playback_speed", 1f).takeIf { it in 0.25f..3f } ?: 1f) }
@@ -158,7 +161,7 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom; scaleY = zoom },
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     useController = false
@@ -175,6 +178,11 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
         // Gesture layer (below the controls so buttons keep priority).
         Box(
             Modifier.fillMaxSize()
+                .pointerInput(locked) {
+                    if (!locked) detectTransformGestures { _, _, scale, _ ->
+                        if (scale != 1f) zoom = (zoom * scale).coerceIn(1f, 3f)
+                    }
+                }
                 .pointerInput(locked) {
                     detectTapGestures(
                         onTap = { controlsVisible = !controlsVisible; interaction++ },
@@ -301,6 +309,10 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
                                 },
                                 label = { Text(if (landscape) "Portrait" else "Landscape", color = Color.White) },
                             )
+                            if (zoom > 1f) AssistChip(
+                                onClick = { zoom = 1f; showHud("Zoom reset"); interaction++ },
+                                label = { Text("Zoom ${"%.1f".format(zoom)}x · Reset", color = Color.White) },
+                            )
                             AssistChip(
                                 onClick = { locked = true; controlsVisible = false; showHud("Controls locked") },
                                 label = { Text("Lock", color = Color.White) },
@@ -335,7 +347,7 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                     FitMode.entries.forEach { m -> FilterChip(fit == m, { fit = m }, { Text(m.label) }) }
                 }
-                Text("Tip: swipe the left side of the video for brightness, the right side for volume, sideways to seek, and double-tap to skip 10 s.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Tip: pinch with two fingers to zoom up to 3x. Swipe the left side of the video for brightness, the right side for volume, sideways to seek, and double-tap to skip 10 s.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
