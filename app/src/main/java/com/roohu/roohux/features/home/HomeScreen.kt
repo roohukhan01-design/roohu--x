@@ -14,6 +14,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -90,21 +96,30 @@ fun HomeScreen(
     val finished = list.filter { it.status == DownloadStatus.COMPLETED }.take(3)
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
-        Box(
-            Modifier.fillMaxWidth().height(210.dp).clip(MaterialTheme.shapes.extraLarge)
-                .background(Brush.linearGradient(listOf(Color(0xFF252039), Color(0xFF151923), Color(0xFF101116)))),
+        Row(
+            Modifier.fillMaxWidth().padding(top = Spacing.s),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
-            HoloOrb(Modifier.align(Alignment.CenterEnd).size(184.dp))
-            Box(Modifier.align(Alignment.TopStart).padding(start = Spacing.l, top = Spacing.l)
-                .clip(MaterialTheme.shapes.small).background(Accent.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
-                Text("YOUR PERSONAL MEDIA SPACE", style = MaterialTheme.typography.labelSmall, color = Accent)
+            Box(
+                Modifier.size(48.dp).clip(MaterialTheme.shapes.large)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("R", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
-            Column(Modifier.align(Alignment.BottomStart).padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(greeting, style = MaterialTheme.typography.labelLarge, color = Color(0xFFB5B6C8))
-                Text("Everything you love.\nOne place.", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFF5F3FF))
-                Text("Browse · Save · Play", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFB7BBC9))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("RoohuX", style = MaterialTheme.typography.titleLarge)
+                Text(greeting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("RX", Modifier.align(Alignment.TopEnd).padding(Spacing.l), style = MaterialTheme.typography.titleLarge, color = Accent)
+            IconButton(onClick = { onNavigate("downloads") }) {
+                Icon(Icons.Outlined.Download, contentDescription = "Downloads")
+            }
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+            SummaryTile("IN PROGRESS", active.size.toString(), Modifier.weight(1f))
+            SummaryTile("SAVED FILES", finished.size.toString(), Modifier.weight(1f))
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
@@ -115,7 +130,7 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
                 placeholder = { Text("Search or paste a media link") },
-                leadingIcon = { Text("⌕", style = MaterialTheme.typography.headlineMedium, color = Accent) },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = Accent) },
                 isError = error != null,
                 supportingText = error?.let { { Text(it) } },
                 singleLine = true,
@@ -140,12 +155,12 @@ fun HomeScreen(
 
         Section("Quick actions") {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                QuickAction("Browser", Modifier.weight(1f)) { onNavigate("browser") }
-                QuickAction("Library", Modifier.weight(1f)) { onNavigate("library") }
+                QuickAction("Browser", Icons.Outlined.Language, Modifier.weight(1f)) { onNavigate("browser") }
+                QuickAction("Library", Icons.Outlined.FolderOpen, Modifier.weight(1f)) { onNavigate("library") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                QuickAction("Downloads", Modifier.weight(1f)) { onNavigate("downloads") }
-                QuickAction("Bookmarks", Modifier.weight(1f)) { browser.pendingPanel = BrowserPanel.BOOKMARKS; onNavigate("browser") }
+                QuickAction("Downloads", Icons.Outlined.Download, Modifier.weight(1f)) { onNavigate("downloads") }
+                QuickAction("Bookmarks", Icons.Outlined.Bookmarks, Modifier.weight(1f)) { browser.pendingPanel = BrowserPanel.BOOKMARKS; onNavigate("browser") }
             }
         }
 
@@ -213,9 +228,20 @@ private fun ContinueRow(item: PlayedItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun QuickAction(title: String, modifier: Modifier, onClick: () -> Unit) {
+private fun QuickAction(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier, onClick: () -> Unit) {
     GlassCard(modifier, onClick = onClick) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(Spacing.s))
+        Text(title, style = MaterialTheme.typography.titleSmall)
+    }
+}
+
+@Composable
+private fun SummaryTile(label: String, value: String, modifier: Modifier = Modifier) {
+    GlassCard(modifier) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Spacing.xs))
+        Text(value, style = MaterialTheme.typography.headlineMedium)
     }
 }
 
