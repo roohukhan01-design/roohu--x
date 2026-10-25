@@ -299,7 +299,18 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
     }
 }
 
-private data class RecentMedia(val uri: String, val title: String, val isVideo: Boolean)\n\nprivate fun readRecentMedia(raw: String?): List<RecentMedia> = try {\n    val array = JSONArray(raw ?: "[]")\n    (0 until array.length()).mapNotNull { index ->\n        val item = array.optJSONObject(index) ?: return@mapNotNull null\n        val uri = item.optString("uri")\n        if (uri.isBlank()) null else RecentMedia(uri, item.optString("title", "Media"), item.optBoolean("video", false))\n    }.distinctBy { it.uri }.take(8)\n} catch (_: Exception) { emptyList() }\n\nprivate data class SavedPlaylist(val name: String, val uris: List<String>)
+private data class RecentMedia(val uri: String, val title: String, val isVideo: Boolean)
+
+private fun readRecentMedia(raw: String?): List<RecentMedia> = try {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val uri = item.optString("uri")
+        if (uri.isBlank()) null else RecentMedia(uri, item.optString("title", "Media"), item.optBoolean("video", false))
+    }.distinctBy { it.uri }.take(8)
+} catch (_: Exception) { emptyList() }
+
+private data class SavedPlaylist(val name: String, val uris: List<String>)
 
 private fun readPlaylists(raw: String?): List<SavedPlaylist> = try {
     val array = JSONArray(raw ?: "[]")
