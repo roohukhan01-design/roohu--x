@@ -91,23 +91,31 @@ fun HomeScreen(
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(Spacing.xl)) {
         Box(
-            Modifier.fillMaxWidth().height(168.dp).clip(MaterialTheme.shapes.large)
-                .background(Brush.linearGradient(listOf(Accent.copy(alpha = 0.22f), Color.Transparent))),
+            Modifier.fillMaxWidth().height(210.dp).clip(MaterialTheme.shapes.extraLarge)
+                .background(Brush.linearGradient(listOf(Color(0xFF252039), Color(0xFF151923), Color(0xFF101116)))),
         ) {
-            HoloOrb(Modifier.align(Alignment.CenterEnd).size(168.dp))
-            Column(Modifier.align(Alignment.CenterStart).padding(Spacing.xl)) {
-                Text("RoohuX", style = MaterialTheme.typography.displaySmall)
-                Text(greeting, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HoloOrb(Modifier.align(Alignment.CenterEnd).size(184.dp))
+            Box(Modifier.align(Alignment.TopStart).padding(start = Spacing.l, top = Spacing.l)
+                .clip(MaterialTheme.shapes.small).background(Accent.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text("YOUR PERSONAL MEDIA SPACE", style = MaterialTheme.typography.labelSmall, color = Accent)
             }
+            Column(Modifier.align(Alignment.BottomStart).padding(Spacing.l), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(greeting, style = MaterialTheme.typography.labelLarge, color = Color(0xFFB5B6C8))
+                Text("Everything you love.\nOne place.", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFF5F3FF))
+                Text("Browse · Save · Play", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFB7BBC9))
+            }
+            Text("RX", Modifier.align(Alignment.TopEnd).padding(Spacing.l), style = MaterialTheme.typography.titleLarge, color = Accent)
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+            Text("Find something good", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it; error = null },
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                placeholder = { Text("Search the web or paste a link") },
+                shape = MaterialTheme.shapes.extraLarge,
+                placeholder = { Text("Search or paste a media link") },
+                leadingIcon = { Text("⌕", style = MaterialTheme.typography.headlineMedium, color = Accent) },
                 isError = error != null,
                 supportingText = error?.let { { Text(it) } },
                 singleLine = true,
@@ -115,8 +123,12 @@ fun HomeScreen(
                 keyboardActions = KeyboardActions(onGo = { openBrowser() }),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                Button(onClick = { openBrowser() }, modifier = Modifier.weight(1f)) { Text("Browse") }
-                OutlinedButton(onClick = { onDownloadClicked() }, modifier = Modifier.weight(1f)) { Text("Download link") }
+                Button(onClick = { openBrowser() }, modifier = Modifier.weight(1f).height(52.dp), shape = MaterialTheme.shapes.large) {
+                    Text("Explore  ↗")
+                }
+                OutlinedButton(onClick = { onDownloadClicked() }, modifier = Modifier.weight(1f).height(52.dp), shape = MaterialTheme.shapes.large) {
+                    Text("Save link  ↓")
+                }
             }
         }
 
