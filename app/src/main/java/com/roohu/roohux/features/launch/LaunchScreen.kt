@@ -37,12 +37,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val BRAND_MOMENT_MS = 900L
+private const val BRAND_MOMENT_MS = 2_200L
+private const val REDUCED_MOTION_MIN_MS = 1_400L
 
 /**
  * In-app launch screen shown right after the system splash (same background and mark, so there is no flash).
  * The progress line reflects REAL start-up work: saved settings, then the library database. After that it fades out;
- * the only extra wait is the short brand animation (BRAND_MOMENT_MS total). With Reduce Motion it dismisses immediately.
+ * the screen remains visible for at least 2.2 seconds (1.4 seconds with Reduce Motion), while real startup work runs.
  */
 @Composable
 fun LaunchScreen(container: AppContainer, onFinished: () -> Unit) {
@@ -67,10 +68,9 @@ fun LaunchScreen(container: AppContainer, onFinished: () -> Unit) {
         steps = 1
         withContext(Dispatchers.IO) { container.database.downloadDao().byStatus(DownloadStatus.QUEUED) } // opens the database
         steps = 2
-        if (!reduce) {
-            val left = BRAND_MOMENT_MS - (SystemClock.uptimeMillis() - started)
-            if (left > 0) delay(left)
-        }
+        val minimumDuration = if (reduce) REDUCED_MOTION_MIN_MS else BRAND_MOMENT_MS
+        val left = minimumDuration - (SystemClock.uptimeMillis() - started)
+        if (left > 0) delay(left)
         onFinished()
     }
 
