@@ -40,7 +40,7 @@ fun PlayerScreen(conn: PlayerConnection, onBack: () -> Unit) {
     DisposableEffect(Unit) {
         val activity = context.findActivity()
         onDispose {
-            conn.pauseIfVideo() // leaving a video pauses it; audio keeps playing with the mini-player/notification
+            if (activity?.isInPictureInPictureMode != true) conn.pauseIfVideo() // PiP keeps video playing
             conn.saveNow()
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
