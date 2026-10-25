@@ -89,8 +89,9 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
     var controlsVisible by remember { mutableStateOf(true) }
     var interaction by remember { mutableIntStateOf(0) }
     var locked by remember { mutableStateOf(false) }
-    var fit by remember { mutableStateOf(FitMode.FIT) }
-    var speed by remember { mutableFloatStateOf(conn.controller?.playbackParameters?.speed ?: 1f) }
+    val playerPrefs = remember(context) { context.getSharedPreferences("roohux_video_player", Context.MODE_PRIVATE) }
+    var fit by remember { mutableStateOf(FitMode.entries.getOrElse(playerPrefs.getInt("fit_mode", 0)) { FitMode.FIT }) }
+    var speed by remember { mutableFloatStateOf(playerPrefs.getFloat("playback_speed", 1f).takeIf { it in 0.25f..3f } ?: 1f) }
     var showSettings by remember { mutableStateOf(false) }
     var showTracks by remember { mutableStateOf(false) }
     var landscape by remember { mutableStateOf(false) }
@@ -115,7 +116,14 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, (volume * max).roundToInt(), 0)
     }
 
-    fun applySpeed(s: Float) { speed = s; conn.controller?.setPlaybackSpeed(s) }
+    fun applySpeed(s: Float) {
+        speed = s
+        playerPrefs.edit().putFloat("playback_speed", s).apply()
+        conn.controller?.setPlaybackSpeed(s)
+    }
+
+    LaunchedEffect(fit) { playerPrefs.edit().putInt("fit_mode", fit.ordinal).apply() }
+    LaunchedEffect(conn.controller) { conn.controller?.setPlaybackSpeed(speed) }
 
     // Keep the screen on while watching; give brightness back to the system when leaving.
     DisposableEffect(Unit) {
