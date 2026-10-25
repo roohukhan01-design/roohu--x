@@ -15,11 +15,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bookmarks
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -101,19 +101,12 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.m),
         ) {
-            Box(
-                Modifier.size(48.dp).clip(MaterialTheme.shapes.large)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("R", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("RoohuX", style = MaterialTheme.typography.titleLarge)
-                Text(greeting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("RoohuX", style = MaterialTheme.typography.headlineSmall)
+                Text(greeting + "  ·  YOUR MEDIA SPACE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = { onNavigate("downloads") }) {
-                Icon(Icons.Outlined.Download, contentDescription = "Downloads")
+                Icon(Icons.Filled.FileDownload, contentDescription = "Downloads")
             }
         }
 
@@ -123,14 +116,14 @@ fun HomeScreen(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
-            Text("Find something good", style = MaterialTheme.typography.titleLarge)
+            Text("Find your next favourite", style = MaterialTheme.typography.headlineSmall)
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it; error = null },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
                 placeholder = { Text("Search or paste a media link") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = Accent) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Accent) },
                 isError = error != null,
                 supportingText = error?.let { { Text(it) } },
                 singleLine = true,
@@ -155,12 +148,12 @@ fun HomeScreen(
 
         Section("Quick actions") {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                QuickAction("Browser", Icons.Outlined.Language, Modifier.weight(1f)) { onNavigate("browser") }
-                QuickAction("Library", Icons.Outlined.FolderOpen, Modifier.weight(1f)) { onNavigate("library") }
+                QuickAction("Browser", Icons.Filled.Explore, Modifier.weight(1f)) { onNavigate("browser") }
+                QuickAction("Library", Icons.Filled.VideoLibrary, Modifier.weight(1f)) { onNavigate("library") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                QuickAction("Downloads", Icons.Outlined.Download, Modifier.weight(1f)) { onNavigate("downloads") }
-                QuickAction("Bookmarks", Icons.Outlined.Bookmarks, Modifier.weight(1f)) { browser.pendingPanel = BrowserPanel.BOOKMARKS; onNavigate("browser") }
+                QuickAction("Downloads", Icons.Filled.FileDownload, Modifier.weight(1f)) { onNavigate("downloads") }
+                QuickAction("Bookmarks", Icons.Filled.Bookmark, Modifier.weight(1f)) { browser.pendingPanel = BrowserPanel.BOOKMARKS; onNavigate("browser") }
             }
         }
 
@@ -203,7 +196,7 @@ fun HomeScreen(
 private fun Section(title: String, action: Pair<String, () -> Unit>? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             action?.let { (label, run) -> TextButton(run) { Text(label) } }
         }
         content()
