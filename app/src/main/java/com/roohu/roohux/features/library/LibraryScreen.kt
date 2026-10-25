@@ -114,6 +114,33 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
             LibSort.entries.forEach { s -> FilterChip(sort == s, { vm.sort.value = s }, { Text(s.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
         }
 
+        if (recentPlayed.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Recently played", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    recentPlayed = emptyList()
+                    historyPrefs.edit().putString("data", "[]").apply()
+                }) { Text("Clear") }
+            }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowItems(recentPlayed, key = { it.uri }) { recent ->
+                    ElevatedCard(onClick = { onPlay(recent.uri, recent.title, recent.isVideo) }) {
+                        Row(
+                            Modifier.widthIn(max = 220.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(if (recent.isVideo) "▶" else "♫", style = MaterialTheme.typography.titleMedium)
+                            Column(Modifier.weight(1f)) {
+                                Text(recent.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                                Text(if (recent.isVideo) "Video" else "Audio", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         val allItems = libraryItems
         val folders = remember(allItems) {
             allItems.orEmpty().groupBy { item ->
