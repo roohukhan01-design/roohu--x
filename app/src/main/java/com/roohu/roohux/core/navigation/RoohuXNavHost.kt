@@ -177,7 +177,18 @@ fun RoohuXNavHost(container: AppContainer) {
                     }
                     composable("browser") { BrowserScreen(browser, onNavigate = { go(it) }) }
                     composable("downloads") { DownloadsScreen(downloadsVm) }
-                    composable("library") { LibraryScreen(libraryVm, onPlay = { u, t, v -> play(u, t, v) }) }
+                    composable("library") {
+                        LibraryScreen(libraryVm,
+                            onPlay = { u, t, v -> play(u, t, v) },
+                            onPlayAudioQueue = { tracks ->
+                                scope.launch {
+                                    val autoplay = container.settings.settings.first().autoplay
+                                    player.playAudioQueue(tracks, autoplay)
+                                    nav.navigate("player") { launchSingleTop = true }
+                                }
+                            },
+                        )
+                    }
                     composable("settings") { SettingsScreen(settingsVm, onAbout = { nav.navigate("about") { launchSingleTop = true } }) }
                     composable("about") { AboutScreen(onBack = { nav.popBackStack() }, onMessage = { container.messages.tryEmit(it) }) }
                     composable("player") { PlayerScreen(player, onBack = { nav.popBackStack() }) }
