@@ -1,6 +1,8 @@
 package com.roohu.roohux.features.library
 
 import android.content.Intent
+import org.json.JSONArray
+import org.json.JSONObject
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -30,6 +32,19 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
     val favOnly by vm.favoritesOnly.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pendingRemove by remember { mutableStateOf<LibraryItem?>(null) }
+    val playlistPrefs = remember(context) { context.getSharedPreferences("roohux_playlists", 0) }
+    var playlists by remember { mutableStateOf(readPlaylists(playlistPrefs.getString("data", "[]"))) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    var creatingPlaylist by remember { mutableStateOf(false) }
+    var addingSong by remember { mutableStateOf<LibraryItem?>(null) }
+    fun savePlaylists(updated: List<SavedPlaylist>) {
+        playlists = updated
+        val data = JSONArray()
+        updated.forEach { p ->
+            data.put(JSONObject().put("name", p.name).put("uris", JSONArray(p.uris)))
+        }
+        playlistPrefs.edit().putString("data", data.toString()).apply()
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) vm.addFromDevice(context, uris)
@@ -67,6 +82,23 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
                 Text("Play all audio (${audioTracks.size})")
             }
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Playlists", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { newPlaylistName = ""; creatingPlaylist = true }) { Text("+ New") }
+        }
+        playlists.forEach { playlist ->
+            val tracks = playlist.uris.mapNotNull { uri ->
+                libraryItems.orEmpty().firstOrNull { it.uri == uri && !it.isVideo }?.let { it.uri to it.title }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(playlist.name, style = MaterialTheme.typography.titleSmall)
+                    Text("${tracks.size} available songs", style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = { onPlayAudioQueue(tracks) }, enabled = tracks.isNotEmpty()) { Text("Play") }
+                TextButton(onClick = { savePlaylists(playlists.filterNot { it.name == playlist.name }) }) { Text("Delete") }
+            }
+        }
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { PulsingDots() }
             list.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -85,6 +117,7 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
                         )
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             TextButton({ onPlay(item.uri, item.title, item.isVideo) }) { Text("Play") }
+                            if (!item.isVideo) TextButton({ addingSong = item }) { Text("Add to playlist") }
                             TextButton({ vm.toggleFavorite(item) }) { Text(if (item.favorite) "Unfavorite" else "Favorite") }
                             TextButton({
                                 val send = Intent(Intent.ACTION_SEND).setType(item.mime.ifBlank { "*/*" })
@@ -99,6 +132,43 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         }
     }
 
+    if (creatingPlaylist) {
+        AlertDialog(
+            onDismissRequest = { creatingPlaylist = false },
+            title = { Text("New playlist") },
+            text = { OutlinedTextField(newPlaylistName, { newPlaylistName = it }, label = { Text("Playlist name") }, singleLine = true) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = newPlaylistName.trim()
+                    if (name.isNotEmpty() && playlists.none { it.name.equals(name, true) }) {
+                        savePlaylists(playlists + SavedPlaylist(name, emptyList()))
+                        creatingPlaylist = false
+                    }
+                }) { Text("Create") }
+            },
+            dismissButton = { TextButton({ creatingPlaylist = false }) { Text("Cancel") } },
+        )
+    }
+    addingSong?.let { song ->
+        AlertDialog(
+            onDismissRequest = { addingSong = null },
+            title = { Text("Add to playlist") },
+            text = {
+                Column {
+                    if (playlists.isEmpty()) Text("Create a playlist first.")
+                    playlists.forEach { p ->
+                        TextButton(onClick = {
+                            savePlaylists(playlists.map {
+                                if (it.name == p.name) it.copy(uris = (it.uris + song.uri).distinct()) else it
+                            })
+                            addingSong = null
+                        }) { Text(p.name + if (song.uri in p.uris) " ✓" else "") }
+                    }
+                }
+            },
+            confirmButton = { TextButton({ addingSong = null }) { Text("Close") } },
+        )
+    }
     pendingRemove?.let { item ->
         val isDownload = item.downloadId != null
         AlertDialog(
@@ -110,3 +180,16 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
         )
     }
 }
+
+private data class SavedPlaylist(val name: String, val uris: List<String>)
+
+private fun readPlaylists(raw: String?): List<SavedPlaylist> = try {
+    val array = JSONArray(raw ?: "[]")
+    (0 until array.length()).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        val name = item.optString("name").trim()
+        if (name.isEmpty()) return@mapNotNull null
+        val uris = item.optJSONArray("uris") ?: JSONArray()
+        SavedPlaylist(name, (0 until uris.length()).mapNotNull { i -> uris.optString(i).takeIf { it.isNotBlank() } })
+    }
+} catch (_: Exception) { emptyList() }
