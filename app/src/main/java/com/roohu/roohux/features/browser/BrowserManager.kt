@@ -214,6 +214,16 @@ class BrowserManager(
         }
     }
 
+    /** Returns true only when the response looks like media or a downloadable binary, not a webpage. */
+    suspend fun isDownloadableResponse(url: String, referer: String?, userAgent: String?): Boolean {
+        val probe = probe(url, referer, userAgent)
+        val type = probe.contentType?.substringBefore(';')?.trim()?.lowercase().orEmpty()
+        if (type == "text/html" || type == "application/xhtml+xml" || type.contains("yt-ump")) return false
+        return type.startsWith("video/") || type.startsWith("audio/") ||
+            type in setOf("application/octet-stream", "application/zip", "application/pdf") ||
+            type.contains("mpegurl") || type == "application/dash+xml"
+    }
+
     // ---- WebView setup ----------------------------------------------------------------------
 
     @SuppressLint("SetJavaScriptEnabled")
