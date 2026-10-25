@@ -1,5 +1,6 @@
 package com.roohu.roohux.features.browser
 
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -98,6 +99,19 @@ fun MediaSheet(manager: BrowserManager, tab: BrowserTab, onDismiss: () -> Unit) 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Media on this page", style = MaterialTheme.typography.titleMedium)
+            val pageHost = remember(tab.url) { runCatching { Uri.parse(tab.url).host.orEmpty().lowercase() }.getOrDefault("") }
+            val isYouTube = pageHost == "youtube.com" || pageHost.endsWith(".youtube.com") ||
+                pageHost == "youtu.be" || pageHost.endsWith(".youtu.be")
+            if (isYouTube) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text(
+                        "YouTube streams are not ordinary video-file links, so RoohuX can't save them from this media panel. Use YouTube's official Download option where available.",
+                        Modifier.padding(12.dp),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             if (tab.drm) {
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.errorContainer) {
                     Text(
