@@ -192,17 +192,22 @@ class BrowserManager(
         }.build()
         try {
             http.newCall(request(true)).execute().use { r ->
-                if (r.isSuccessful) {
-                    return@withContext MediaProbe(
-                        r.header("Content-Length")?.toLongOrNull()?.takeIf { it > 0 },
-                        r.header("Content-Type")?.substringBefore(';')?.trim(),
-                    )
+                val type = r.header("Content-Type")?.substringBefore(';')?.trim()
+                val normalized = type?.lowercase().orEmpty()
+                val looksLikePage = normalized == "text/html" || normalized == "application/xhtml+xml" ||
+                    normalized.contains("yt-ump")
+                val size = r.header("Content-Length")?.toLongOrNull()?.takeIf { it > 0 }
+                // Some hosts (notably file-sharing services) answer HEAD with a landing/confirmation
+                // page. Only trust HEAD when it looks like a file response; otherwise inspect a ranged GET.
+                if (r.isSuccessful && !looksLikePage && (size != null || !type.isNullOrBlank())) {
+                    return@withContext MediaProbe(size, type)
                 }
             }
             http.newCall(request(false)).execute().use { r ->
+                val type = r.header("Content-Type")?.substringBefore(';')?.trim()
                 val total = ContentRange.parse(r.header("Content-Range"))?.total
                     ?: if (r.code == 200) r.header("Content-Length")?.toLongOrNull() else null
-                MediaProbe(total, r.header("Content-Type")?.substringBefore(';')?.trim())
+                MediaProbe(total, type)
             }
         } catch (e: Exception) {
             MediaProbe(null, null)
