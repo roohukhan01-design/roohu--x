@@ -34,6 +34,14 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
     val favOnly by vm.favoritesOnly.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedFolder by remember { mutableStateOf<String?>(null) }
+    val historyPrefs = remember(context) { context.getSharedPreferences("roohux_recent_media", 0) }
+    var recentPlayed by remember { mutableStateOf(readRecentMedia(historyPrefs.getString("data", "[]"))) }
+    fun recordPlayed(item: LibraryItem) {
+        val updated = (listOf(RecentMedia(item.uri, item.title, item.isVideo)) + recentPlayed.filterNot { it.uri == item.uri }).take(8)
+        recentPlayed = updated
+        val json = JSONArray().apply { updated.forEach { put(JSONObject().put("uri", it.uri).put("title", it.title).put("video", it.isVideo)) } }
+        historyPrefs.edit().putString("data", json.toString()).apply()
+    }
     var pendingRemove by remember { mutableStateOf<LibraryItem?>(null) }
     val playlistPrefs = remember(context) { context.getSharedPreferences("roohux_playlists", 0) }
     var playlists by remember { mutableStateOf(readPlaylists(playlistPrefs.getString("data", "[]"))) }
@@ -173,7 +181,7 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            TextButton({ onPlay(item.uri, item.title, item.isVideo) }) { Text("Play") }
+                            TextButton({ recordPlayed(item); onPlay(item.uri, item.title, item.isVideo) }) { Text("Play") }
                             if (!item.isVideo) TextButton({ addingSong = item }) { Text("Add to playlist") }
                             TextButton({
                                 val send = Intent(Intent.ACTION_SEND).setType(item.mime.ifBlank { "*/*" })
@@ -291,7 +299,7 @@ fun LibraryScreen(vm: LibraryViewModel, onPlay: (uri: String, title: String, isV
     }
 }
 
-private data class SavedPlaylist(val name: String, val uris: List<String>)
+private data class RecentMedia(val uri: String, val title: String, val isVideo: Boolean)\n\nprivate fun readRecentMedia(raw: String?): List<RecentMedia> = try {\n    val array = JSONArray(raw ?: "[]")\n    (0 until array.length()).mapNotNull { index ->\n        val item = array.optJSONObject(index) ?: return@mapNotNull null\n        val uri = item.optString("uri")\n        if (uri.isBlank()) null else RecentMedia(uri, item.optString("title", "Media"), item.optBoolean("video", false))\n    }.distinctBy { it.uri }.take(8)\n} catch (_: Exception) { emptyList() }\n\nprivate data class SavedPlaylist(val name: String, val uris: List<String>)
 
 private fun readPlaylists(raw: String?): List<SavedPlaylist> = try {
     val array = JSONArray(raw ?: "[]")
