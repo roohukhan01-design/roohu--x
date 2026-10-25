@@ -78,14 +78,14 @@ fun LaunchScreen(container: AppContainer, onFinished: () -> Unit) {
     val status = when (steps) { 0 -> "Loading settings"; 1 -> "Opening library"; else -> "Ready" }
 
     Box(
-        Modifier.fillMaxSize().background(Ink)
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF19172A), Ink, Color(0xFF08090D))))
             .pointerInput(Unit) { // block touches while the screen is up
                 awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
             },
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Canvas(Modifier.size(168.dp)) {
+            Canvas(Modifier.size(196.dp)) {
                 val c = Offset(size.width / 2f, size.height / 2f)
                 val r = size.minDimension * 0.4f
                 drawCircle(
@@ -108,8 +108,9 @@ fun LaunchScreen(container: AppContainer, onFinished: () -> Unit) {
                 drawPath(path, Accent.copy(alpha = mark.value.coerceIn(0f, 1f)))
             }
             Spacer(Modifier.height(Spacing.l))
-            Text("RoohuX", Modifier.alpha(word.value), style = MaterialTheme.typography.displayMedium, color = Color(0xFFECEDF2))
-            Text("Browse. Save. Play.", Modifier.alpha(word.value), style = MaterialTheme.typography.bodyMedium, color = Color(0xFF9AA3B5))
+            Text("ROOHU", Modifier.alpha(word.value), style = MaterialTheme.typography.labelLarge, color = Accent)
+            Text("RoohuX", Modifier.alpha(word.value), style = MaterialTheme.typography.displayMedium, color = Color(0xFFF5F3FF))
+            Text("YOUR SPACE TO DISCOVER", Modifier.alpha(word.value), style = MaterialTheme.typography.labelSmall, color = Color(0xFF9AA3B5))
         }
         Column(
             Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = Spacing.xxl),
@@ -121,7 +122,7 @@ fun LaunchScreen(container: AppContainer, onFinished: () -> Unit) {
                 color = Accent, trackColor = Color.White.copy(alpha = 0.1f),
             )
             Spacer(Modifier.height(Spacing.s))
-            Text(status, style = MaterialTheme.typography.labelSmall, color = Color(0xFF9AA3B5))
+            Text(status.uppercase(), style = MaterialTheme.typography.labelSmall, color = Color(0xFF9AA3B5))
         }
     }
 }
