@@ -1,5 +1,7 @@
 package com.roohu.roohux.features.player
 
+import android.app.PictureInPictureParams
+import android.util.Rational
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -89,6 +91,13 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
     val audio = remember { context.getSystemService(AudioManager::class.java) }
 
     var controlsVisible by remember { mutableStateOf(true) }
+    var inPip by remember { mutableStateOf(false) }
+    LaunchedEffect(activity) {
+        while (true) {
+            inPip = activity?.isInPictureInPictureMode == true
+            delay(350)
+        }
+    }
     var interaction by remember { mutableIntStateOf(0) }
     var locked by remember { mutableStateOf(false) }
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -246,12 +255,12 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
         )
 
         // Locked: only an unlock button.
-        if (locked) {
+        if (locked && !inPip) {
             AnimatedVisibility(controlsVisible, Modifier.align(Alignment.CenterStart).padding(Spacing.l), enter = fadeIn(), exit = fadeOut()) {
                 FilledTonalButton({ locked = false; showHud("Controls unlocked") }) { Text("Unlock") }
             }
         } else {
-            AnimatedVisibility(controlsVisible, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
+            AnimatedVisibility(controlsVisible && !inPip, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.75f))),
@@ -261,6 +270,16 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
                     Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
                         Text(conn.title, Modifier.weight(1f), color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (activity != null && android.os.Build.VERSION.SDK_INT >= 26) {
+                            TextButton(onClick = {
+                                try {
+                                    val params = PictureInPictureParams.Builder()
+                                        .setAspectRatio(Rational(16, 9))
+                                        .build()
+                                    activity.enterPictureInPictureMode(params)
+                                } catch (_: Exception) { showHud("Picture-in-Picture unavailable") }
+                            }) { Text("PiP", color = Color.White) }
+                        }
                         if (hasSelectableTracks(conn)) TextButton({ showTracks = true; interaction++ }) { Text("Tracks", color = Color.White) }
                         TextButton({ showSettings = true; interaction++ }) { Text("Settings", color = Color.White) }
                     }
@@ -323,12 +342,12 @@ fun VideoPlayer(conn: PlayerConnection, onBack: () -> Unit) {
             }
         }
 
-        hud?.let {
+        if (!inPip) hud?.let {
             Surface(Modifier.align(Alignment.Center), shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.72f)) {
                 Text(it, Modifier.padding(horizontal = Spacing.l, vertical = Spacing.s), color = Color.White, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
             }
         }
-        conn.error?.let { ErrorPanel(it, conn, onBack, Modifier.align(Alignment.Center)) }
+        if (!inPip) conn.error?.let { ErrorPanel(it, conn, onBack, Modifier.align(Alignment.Center)) }
     }
 
     if (showSettings) {
