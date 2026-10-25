@@ -18,6 +18,12 @@ object MediaClassifier {
     /** Classifies a network request URL by its file extension; returns null for anything that isn't obviously media. */
     fun classify(url: String): DetectedMedia? {
         val http = url.toHttpUrlOrNull() ?: return null
+        val host = http.host.lowercase()
+        // YouTube's player endpoints are segmented/internal stream URLs, not normal file links.
+        // Don't present them as direct downloads; use the service's own offline/download feature.
+        if (host == "youtube.com" || host.endsWith(".youtube.com") ||
+            host == "youtu.be" || host.endsWith(".youtu.be") ||
+            host == "googlevideo.com" || host.endsWith(".googlevideo.com")) return null
         val last = http.pathSegments.lastOrNull().orEmpty()
         val extensionKind = when (extensionOf(last)) {
             in VIDEO_EXT -> MediaKind.DIRECT_VIDEO
