@@ -7,7 +7,7 @@ enum class MediaKind { DIRECT_VIDEO, DIRECT_AUDIO, STREAM_PLAYLIST, BLOB }
 
 data class DetectedMedia(val url: String, val kind: MediaKind, val name: String)
 
-/** Pure URL/element classification used by the browser's media detection. Never invents qualities or sizes. */
+/** Classifies direct media URLs and sources explicitly attached to HTML media elements. */
 object MediaClassifier {
     val VIDEO_EXT = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp")
     val AUDIO_EXT = setOf("mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac")
@@ -15,15 +15,14 @@ object MediaClassifier {
 
     fun extensionOf(name: String): String = name.substringAfterLast('.', "").lowercase()
 
-    /** Classifies a network request URL by its file extension; returns null for anything that isn't obviously media. */
+    private fun isBlockedStreamingHost(host: String): Boolean =
+        host == "youtube.com" || host.endsWith(".youtube.com") ||
+            host == "youtu.be" || host.endsWith(".youtu.be") ||
+            host == "googlevideo.com" || host.endsWith(".googlevideo.com")
+
     fun classify(url: String): DetectedMedia? {
         val http = url.toHttpUrlOrNull() ?: return null
-        val host = http.host.lowercase()
-        // YouTube's player endpoints are segmented/internal stream URLs, not normal file links.
-        // Don't present them as direct downloads; use the service's own offline/download feature.
-        if (host == "youtube.com" || host.endsWith(".youtube.com") ||
-            host == "youtu.be" || host.endsWith(".youtu.be") ||
-            host == "googlevideo.com" || host.endsWith(".googlevideo.com")) return null
+        if (isBlockedStreamingHost(http.host.lowercase())) return null
         val last = http.pathSegments.lastOrNull().orEmpty()
         val extensionKind = when (extensionOf(last)) {
             in VIDEO_EXT -> MediaKind.DIRECT_VIDEO
@@ -31,40 +30,51 @@ object MediaClassifier {
             in PLAYLIST_EXT -> MediaKind.STREAM_PLAYLIST
             else -> null
         }
-        val kind = extensionKind ?: classifyByDeclaredFormat(http.queryParameterNames.associateWith { key -> http.queryParameterValues(key).lastOrNull().orEmpty() }) ?: return null
-        val fallbackName = when (kind) {
+        val kind = extensionKind ?: classifyByDeclaredFormat(
+            http.queryParameterNames.associateWith { key -> http.queryParameterValues(key).lastOrNull().orEmpty() },
+        ) ?: return null
+        val fallback = when (kind) {
             MediaKind.STREAM_PLAYLIST -> "stream-playlist"
             MediaKind.DIRECT_AUDIO -> "audio"
             else -> "video"
         }
-        return DetectedMedia(url, kind, FileNames.sanitize(last.ifBlank { fallbackName }, fallbackName))
+        return DetectedMedia(url, kind, FileNames.sanitize(last.ifBlank { fallback }, fallback))
     }
 
-    /** Detects common explicit format hints when a server hides the media extension. */
     private fun classifyByDeclaredFormat(parameters: Map<String, String>): MediaKind? {
         val hints = parameters.entries.joinToString(" ") { (key, value) -> "$key=$value" }.lowercase()
         return when {
             "application/vnd.apple.mpegurl" in hints || "application/x-mpegurl" in hints ||
-                "format=m3u8" in hints || "type=m3u8" in hints -> MediaKind.STREAM_PLAYLIST
-            "application/dash+xml" in hints || "format=mpd" in hints || "type=mpd" in hints -> MediaKind.STREAM_PLAYLIST
+                "format=m3u8" in hints || "type=m3u8" in hints ||
+                "application/dash+xml" in hints || "format=mpd" in hints || "type=mpd" in hints -> MediaKind.STREAM_PLAYLIST
             "video/mp4" in hints || "format=mp4" in hints -> MediaKind.DIRECT_VIDEO
             "audio/mpeg" in hints || "audio/mp4" in hints || "format=mp3" in hints || "format=m4a" in hints -> MediaKind.DIRECT_AUDIO
             else -> null
         }
     }
 
-    /** Classifies a URL found on a <video>/<audio> element ([tag] is "video" or "audio"). */
+    /** Classifies URLs actually assigned to a video/audio element, including extensionless signed URLs. */
     fun classifyElement(url: String, tag: String): DetectedMedia? {
         if (url.startsWith("blob:", ignoreCase = true)) return DetectedMedia(url, MediaKind.BLOB, "Blob stream")
-        // Do not label every URL attached to a <video>/<audio> element as a file.
-        // File-sharing preview pages and player endpoints often expose HTML/internal URLs here.
-        // Only classify extensionless media when the URL itself explicitly declares a known format.
         classify(url)?.let { return it }
         val http = url.toHttpUrlOrNull() ?: return null
+        if (isBlockedStreamingHost(http.host.lowercase())) return null
         val declared = classifyByDeclaredFormat(
             http.queryParameterNames.associateWith { key -> http.queryParameterValues(key).lastOrNull().orEmpty() },
-        ) ?: return null
-        val name = FileNames.sanitize(http.pathSegments.lastOrNull().orEmpty(), if (declared == MediaKind.DIRECT_AUDIO) "audio" else "video")
-        return DetectedMedia(url, declared, name)
+        )
+        if (declared != null) {
+            val fallback = if (declared == MediaKind.DIRECT_AUDIO) "audio" else "video"
+            return DetectedMedia(url, declared, FileNames.sanitize(http.pathSegments.lastOrNull().orEmpty(), fallback))
+        }
+        // The element itself is the media declaration. Many legitimate hosts use signed URLs with no extension.
+        val kind = when (tag.lowercase()) {
+            "audio" -> MediaKind.DIRECT_AUDIO
+            "video" -> MediaKind.DIRECT_VIDEO
+            else -> return null
+        }
+        val fallback = if (kind == MediaKind.DIRECT_AUDIO) "audio" else "video"
+        val pathName = http.pathSegments.lastOrNull().orEmpty()
+        val safeName = FileNames.sanitize(pathName.substringBefore('?').ifBlank { fallback }, fallback)
+        return DetectedMedia(url, kind, safeName)
     }
 }
