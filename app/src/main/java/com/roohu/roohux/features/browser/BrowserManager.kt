@@ -410,7 +410,9 @@ class BrowserManager(
     }
 
     private fun scanPage(tab: BrowserTab) {
-        for (delayMs in longArrayOf(0L, 2500L, 6000L)) {
+        // Media elements are often created only after the user presses Play. Re-scan after
+        // navigation to catch late-created media elements and resource URLs.
+        for (delayMs in longArrayOf(0L, 1200L, 3000L, 6000L, 10000L, 16000L, 24000L)) {
             mainHandler.postDelayed({ if (tab in tabs) runScan(tab) }, delayMs)
         }
     }
@@ -441,10 +443,13 @@ class BrowserManager(
 
         // Reports media element sources and whether the element uses Encrypted Media Extensions (DRM).
         private const val SCAN_JS =
-            "(function(){var r=[];document.querySelectorAll('video,audio').forEach(function(m){" +
-                "var t=m.tagName.toLowerCase();var s=m.currentSrc||m.src;var d=!!m.mediaKeys;" +
-                "if(s)r.push({u:s,t:t,d:d});" +
-                "m.querySelectorAll('source').forEach(function(x){if(x.src)r.push({u:x.src,t:t,d:d});});" +
-                "if(!s&&d)r.push({u:'',t:t,d:true});});return JSON.stringify(r);})()"
+            "(function(){var r=[],seen={};function add(u,t,d){if(u&&!seen[u]){seen[u]=1;r.push({u:u,t:t||'',d:!!d});}}" +
+                "document.querySelectorAll('video,audio').forEach(function(m){" +
+                "var t=m.tagName.toLowerCase(),s=m.currentSrc||m.src,d=!!m.mediaKeys;" +
+                "if(s)add(s,t,d);" +
+                "m.querySelectorAll('source').forEach(function(x){if(x.src)add(x.src,t,d);});" +
+                "if(!s&&d)r.push({u:'',t:t,d:true});});" +
+                "try{performance.getEntriesByType('resource').forEach(function(e){add(e.name,'resource',false);});}catch(e){}" +
+                "return JSON.stringify(r);})()"
     }
 }
