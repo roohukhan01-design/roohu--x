@@ -36,9 +36,9 @@ class BrowserLogicTest {
 
     @Test fun elementClassification() {
         assertEquals(MediaKind.BLOB, MediaClassifier.classifyElement("blob:https://x.com/123", "video")?.kind)
-        // An extensionless player URL without an explicit format hint is not proof of a downloadable file.
-        assertNull(MediaClassifier.classifyElement("https://x.com/stream?id=7", "audio"))
-        assertNull(MediaClassifier.classifyElement("https://x.com/stream?id=7", "video"))
+        // A URL attached to a real audio/video element is a media candidate even without a file extension.
+        assertEquals(MediaKind.DIRECT_AUDIO, MediaClassifier.classifyElement("https://x.com/stream?id=7", "audio")?.kind)
+        assertEquals(MediaKind.DIRECT_VIDEO, MediaClassifier.classifyElement("https://x.com/stream?id=7", "video")?.kind)
         assertEquals(MediaKind.DIRECT_VIDEO, MediaClassifier.classifyElement("https://x.com/stream?type=video%2Fmp4", "video")?.kind)
     }
 }
