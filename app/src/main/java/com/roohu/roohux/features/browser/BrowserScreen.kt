@@ -70,7 +70,7 @@ private fun BrowserContent(manager: BrowserManager, tab: BrowserTab, onNavigate:
                     Text("The server reported an error ($code).", Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
-            if (!tab.blank && !tab.chipDismissed && tab.error == null) {
+            if (tab.media.any { it.kind == MediaKind.DIRECT_VIDEO || it.kind == MediaKind.DIRECT_AUDIO } && !tab.chipDismissed && tab.error == null) {
                 MediaChip(tab, Modifier.align(Alignment.TopEnd).padding(8.dp)) { panel = BrowserPanel.MEDIA }
             }
         }
@@ -240,7 +240,7 @@ private fun MediaChip(tab: BrowserTab, modifier: Modifier, onOpen: () -> Unit) {
     Surface(modifier, shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f), shadowElevation = 6.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (downloadable) "Download available" else if (tab.media.isEmpty() && !tab.drm) "Find downloads" else "Media detected",
+                "Download available",
                 Modifier.clickable(onClick = onOpen).padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
                 color = MaterialTheme.colorScheme.onPrimary,
                 style = MaterialTheme.typography.labelLarge,
