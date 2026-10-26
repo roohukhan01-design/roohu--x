@@ -240,7 +240,7 @@ private fun MediaChip(tab: BrowserTab, modifier: Modifier, onOpen: () -> Unit) {
     Surface(modifier, shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f), shadowElevation = 6.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (downloadable) "Download available" else "Media detected",
+                if (downloadable) "Download available" else if (tab.media.isEmpty() && !tab.drm) "Find downloads" else "Media detected",
                 Modifier.clickable(onClick = onOpen).padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
                 color = MaterialTheme.colorScheme.onPrimary,
                 style = MaterialTheme.typography.labelLarge,
