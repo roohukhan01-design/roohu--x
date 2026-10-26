@@ -443,7 +443,14 @@ class BrowserManager(
 
         // Reports media element sources and whether the element uses Encrypted Media Extensions (DRM).
         private const val SCAN_JS =
-            "(function(){var r=[],seen={};function add(u,t,d){if(u&&!seen[u]){seen[u]=1;r.push({u:u,t:t||'',d:!!d});}}" +
+            "(function(){if(!window.__roohuxMediaWatch){window.__roohuxMediaWatch=true;" +
+                "var schedule=function(){if(window.__roohuxMediaTimer)clearTimeout(window.__roohuxMediaTimer);" +
+                "window.__roohuxMediaTimer=setTimeout(function(){try{window.dispatchEvent(new Event('roohux-media-scan'));}catch(e){}},250);};" +
+                "document.addEventListener('play',schedule,true);document.addEventListener('loadedmetadata',schedule,true);" +
+                "document.addEventListener('durationchange',schedule,true);document.addEventListener('canplay',schedule,true);" +
+                "try{new MutationObserver(schedule).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src']});}catch(e){}" +
+                "window.addEventListener('roohux-media-scan',function(){if(window.__roohuxNativeScan)window.__roohuxNativeScan();});}" +
+                "var r=[],seen={};function add(u,t,d){if(u&&!seen[u]){seen[u]=1;r.push({u:u,t:t||'',d:!!d});}}" +
                 "document.querySelectorAll('video,audio').forEach(function(m){" +
                 "var t=m.tagName.toLowerCase(),s=m.currentSrc||m.src,d=!!m.mediaKeys;" +
                 "if(s)add(s,t,d);" +
