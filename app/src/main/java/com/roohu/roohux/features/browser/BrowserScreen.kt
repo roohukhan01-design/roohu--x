@@ -70,7 +70,7 @@ private fun BrowserContent(manager: BrowserManager, tab: BrowserTab, onNavigate:
                     Text("The server reported an error ($code).", Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
-            if ((tab.media.isNotEmpty() || tab.drm) && !tab.chipDismissed && tab.error == null) {
+            if (!tab.blank && !tab.chipDismissed && tab.error == null) {
                 MediaChip(tab, Modifier.align(Alignment.TopEnd).padding(8.dp)) { panel = BrowserPanel.MEDIA }
             }
         }
