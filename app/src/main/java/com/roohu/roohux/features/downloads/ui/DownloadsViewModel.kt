@@ -23,7 +23,13 @@ class DownloadsViewModel(private val container: AppContainer) : ViewModel() {
         is UrlUtils.Result.Ok -> {
             viewModelScope.launch {
                 val res = container.downloads.enqueue(r.url)
-                container.messages.tryEmit(if (res.alreadyExists) "That file is already in your downloads." else "Download started.")
+                container.messages.tryEmit(
+                    when {
+                        res.rejected -> "That link can't be downloaded: only http and https files are supported."
+                        res.alreadyExists -> "That file is already in your downloads."
+                        else -> "Download started."
+                    },
+                )
             }
             null
         }

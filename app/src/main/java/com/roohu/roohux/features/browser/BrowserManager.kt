@@ -49,8 +49,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
-import org.json.JSONTokener
 
 data class MediaProbe(val sizeBytes: Long?, val contentType: String?)
 
@@ -173,7 +171,13 @@ class BrowserManager(
     fun startDownload(url: String, referer: String?, userAgent: String?) {
         scope.launch {
             val r = downloads.enqueue(url, referer, userAgent)
-            emit(if (r.alreadyExists) "That file is already in your downloads." else "Download started.")
+            emit(
+                when {
+                    r.rejected -> "That link can't be downloaded: only http and https files are supported."
+                    r.alreadyExists -> "That file is already in your downloads."
+                    else -> "Download started."
+                },
+            )
         }
     }
 
@@ -244,6 +248,8 @@ class BrowserManager(
             loadWithOverviewMode = true
         }
         tab.defaultUserAgent = wv.settings.userAgentString
+        // One narrow, string-only entry point for the media watcher script (see MediaBridge).
+        wv.addJavascriptInterface(MediaBridge { json -> mainHandler.post { onScanReport(tab, json) } }, MediaBridge.NAME)
         CookieManager.getInstance().setAcceptThirdPartyCookies(wv, false)
 
         wv.setDownloadListener { url, userAgent, _, _, _ ->
@@ -274,7 +280,12 @@ class BrowserManager(
                 tab.media = emptyList()
                 tab.drm = false
                 tab.chipDismissed = false
+                tab.mediaPage = url ?: ""
                 syncNav(tab)
+            }
+
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                injectWatcher(tab)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -283,11 +294,21 @@ class BrowserManager(
                 view?.title?.takeIf { it.isNotBlank() }?.let { tab.title = it }
                 syncNav(tab)
                 recordHistory(tab)
-                scanPage(tab)
+                injectWatcher(tab)
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                if (url != null) tab.url = url
+                if (url != null) {
+                    tab.url = url
+                    // Single-page sites change the address without a page load: the old page's media no longer applies.
+                    if (!MediaClassifier.samePage(url, tab.mediaPage)) {
+                        tab.media = emptyList()
+                        tab.drm = false
+                        tab.chipDismissed = false
+                        tab.mediaPage = url
+                        resetWatcher(tab)
+                    }
+                }
                 syncNav(tab)
             }
 
@@ -405,58 +426,34 @@ class BrowserManager(
     }
 
     private fun addMedia(tab: BrowserTab, media: DetectedMedia) {
-        if (tab.media.size >= MAX_MEDIA || tab.media.any { it.url == media.url }) return
+        val key = MediaClassifier.dedupeKey(media.url)
+        if (tab.media.size >= MAX_MEDIA || tab.media.any { MediaClassifier.dedupeKey(it.url) == key }) return
+        val direct = media.kind == MediaKind.DIRECT_VIDEO || media.kind == MediaKind.DIRECT_AUDIO
         tab.media = tab.media + media
+        if (direct) tab.chipDismissed = false // new downloadable media after a dismissal deserves a fresh prompt
     }
 
-    private fun scanPage(tab: BrowserTab) {
-        // Media elements are often created only after the user presses Play. Re-scan after
-        // navigation to catch late-created media elements and resource URLs.
-        for (delayMs in longArrayOf(0L, 1200L, 3000L, 6000L, 10000L, 16000L, 24000L)) {
-            mainHandler.postDelayed({ if (tab in tabs) runScan(tab) }, delayMs)
-        }
+    /** Called on the main thread with the watcher script's JSON. Ignores reports from a page we already left. */
+    private fun onScanReport(tab: BrowserTab, json: String) {
+        if (tab !in tabs) return
+        val report = MediaClassifier.parseScanReport(json) ?: return
+        if (!MediaClassifier.samePage(report.page, tab.url)) return
+        if (report.drm) tab.drm = true
+        report.items.forEach { addMedia(tab, it) }
     }
 
-    private fun runScan(tab: BrowserTab) {
-        val expected = tab.url
-        tab.webView.evaluateJavascript(SCAN_JS) { raw ->
-            if (tab.url != expected || raw == null) return@evaluateJavascript
-            try {
-                val json = JSONTokener(raw).nextValue() as? String ?: return@evaluateJavascript
-                val arr = JSONArray(json)
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    if (o.optBoolean("d")) tab.drm = true
-                    val u = o.optString("u")
-                    if (u.isNotEmpty()) MediaClassifier.classifyElement(u, o.optString("t"))?.let { addMedia(tab, it) }
-                }
-            } catch (e: Exception) {
-                // Pages can return odd values; detection is best-effort.
-            }
-        }
+    private fun injectWatcher(tab: BrowserTab) {
+        if (tab !in tabs || tab.blank) return
+        tab.webView.evaluateJavascript(MediaBridge.WATCHER_JS, null)
+    }
+
+    private fun resetWatcher(tab: BrowserTab) {
+        tab.webView.evaluateJavascript("window.__rxw&&window.__rxw.reset();", null)
     }
 
     companion object {
         private const val MAX_MEDIA = 20
         private const val DESKTOP_UA =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-
-        // Reports media element sources and whether the element uses Encrypted Media Extensions (DRM).
-        private const val SCAN_JS =
-            "(function(){if(!window.__roohuxMediaWatch){window.__roohuxMediaWatch=true;" +
-                "var schedule=function(){if(window.__roohuxMediaTimer)clearTimeout(window.__roohuxMediaTimer);" +
-                "window.__roohuxMediaTimer=setTimeout(function(){try{window.dispatchEvent(new Event('roohux-media-scan'));}catch(e){}},250);};" +
-                "document.addEventListener('play',schedule,true);document.addEventListener('loadedmetadata',schedule,true);" +
-                "document.addEventListener('durationchange',schedule,true);document.addEventListener('canplay',schedule,true);" +
-                "try{new MutationObserver(schedule).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src']});}catch(e){}" +
-                "window.addEventListener('roohux-media-scan',function(){if(window.__roohuxNativeScan)window.__roohuxNativeScan();});}" +
-                "var r=[],seen={};function add(u,t,d){if(u&&!seen[u]){seen[u]=1;r.push({u:u,t:t||'',d:!!d});}}" +
-                "document.querySelectorAll('video,audio').forEach(function(m){" +
-                "var t=m.tagName.toLowerCase(),s=m.currentSrc||m.src,d=!!m.mediaKeys;" +
-                "if(s)add(s,t,d);" +
-                "m.querySelectorAll('source').forEach(function(x){if(x.src)add(x.src,t,d);});" +
-                "if(!s&&d)r.push({u:'',t:t,d:true});});" +
-                "try{performance.getEntriesByType('resource').forEach(function(e){add(e.name,'resource',false);});}catch(e){}" +
-                "return JSON.stringify(r);})()"
     }
 }

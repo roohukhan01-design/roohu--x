@@ -31,6 +31,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -70,7 +72,7 @@ private fun BrowserContent(manager: BrowserManager, tab: BrowserTab, onNavigate:
                     Text("The server reported an error ($code).", Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
-            if (tab.media.any { it.kind == MediaKind.DIRECT_VIDEO || it.kind == MediaKind.DIRECT_AUDIO } && !tab.chipDismissed && tab.error == null) {
+            if ((tab.media.isNotEmpty() || tab.drm) && !tab.chipDismissed && tab.error == null) {
                 MediaChip(tab, Modifier.align(Alignment.TopEnd).padding(8.dp)) { panel = BrowserPanel.MEDIA }
             }
         }
@@ -237,16 +239,25 @@ private fun ErrorOverlay(tab: BrowserTab, message: String, onRetry: () -> Unit) 
 @Composable
 private fun MediaChip(tab: BrowserTab, modifier: Modifier, onOpen: () -> Unit) {
     val downloadable = tab.media.any { it.kind == MediaKind.DIRECT_VIDEO || it.kind == MediaKind.DIRECT_AUDIO }
-    Surface(modifier, shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f), shadowElevation = 6.dp) {
+    val label = if (downloadable) "Download media" else "Media detected"
+    val container = if (downloadable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+    val content = if (downloadable) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+    Surface(
+        modifier.semantics { contentDescription = label },
+        shape = RoundedCornerShape(50),
+        color = container,
+        shadowElevation = 8.dp,
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Download available",
-                Modifier.clickable(onClick = onOpen).padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
+                label,
+                Modifier.clickable(onClick = onOpen).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
+                    .padding(start = 16.dp, end = 4.dp),
+                color = content,
                 style = MaterialTheme.typography.labelLarge,
             )
-            IconButton({ tab.chipDismissed = true }, Modifier.size(32.dp)) {
-                Icon(Icons.Default.Close, "Dismiss", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
+            IconButton({ tab.chipDismissed = true }, Modifier.size(44.dp)) {
+                Icon(Icons.Default.Close, "Dismiss", Modifier.size(16.dp), tint = content)
             }
         }
     }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext (http://) is allowed because direct file downloads and some media hosts still use it.
+  Only the system certificate store is trusted: user-installed CAs are NOT, and TLS errors are never bypassed.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

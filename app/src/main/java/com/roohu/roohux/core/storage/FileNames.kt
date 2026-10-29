@@ -38,4 +38,34 @@ object FileNames {
         val last = raw.substringAfterLast('/').substringAfterLast('\\')
         return sanitize(last, "").ifBlank { null }
     }
+
+    private val MIME_TO_EXT = mapOf(
+        "video/mp4" to "mp4", "video/webm" to "webm", "video/x-matroska" to "mkv", "video/quicktime" to "mov",
+        "video/3gpp" to "3gp", "video/x-m4v" to "m4v", "video/x-flv" to "flv", "video/x-msvideo" to "avi",
+        "video/mpeg" to "mpg", "audio/mpeg" to "mp3", "audio/mp3" to "mp3", "audio/mp4" to "m4a", "audio/x-m4a" to "m4a",
+        "audio/aac" to "aac", "audio/wav" to "wav", "audio/x-wav" to "wav", "audio/ogg" to "ogg", "audio/opus" to "opus",
+        "audio/flac" to "flac", "audio/webm" to "weba", "application/pdf" to "pdf", "application/zip" to "zip",
+        "image/jpeg" to "jpg", "image/png" to "png", "image/gif" to "gif", "image/webp" to "webp",
+    )
+
+    /** Extensions that say "a script produced this", not what the bytes are. Replaced when the MIME type is specific. */
+    private val SERVER_SIDE_EXT = setOf("php", "asp", "aspx", "jsp", "cgi", "do", "action", "bin", "php3", "ashx", "axd", "dat", "tmp", "download")
+
+    fun extensionForMime(mime: String?): String? = MIME_TO_EXT[mime?.substringBefore(';')?.trim()?.lowercase()]
+
+    /**
+     * Makes sure a name ends in an extension that matches the content: a missing extension (extensionless signed
+     * media URLs) or a server-side script extension is replaced/completed from a specific MIME type. A real,
+     * ordinary extension the server chose is never overridden. Returns [name] unchanged when the MIME type is unknown.
+     */
+    fun ensureExtension(name: String, mime: String?): String {
+        val wanted = extensionForMime(mime) ?: return name
+        val dot = name.lastIndexOf('.')
+        val ext = if (dot > 0 && dot < name.length - 1) name.substring(dot + 1).lowercase() else ""
+        return when {
+            ext.isEmpty() -> name.trimEnd('.') + "." + wanted
+            ext in SERVER_SIDE_EXT -> name.substring(0, dot) + "." + wanted
+            else -> name
+        }
+    }
 }

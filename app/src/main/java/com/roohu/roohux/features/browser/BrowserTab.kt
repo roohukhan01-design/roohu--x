@@ -26,6 +26,8 @@ class BrowserTab(val id: Long, val webView: WebView) {
     var findCurrent by mutableIntStateOf(0)
     var findTotal by mutableIntStateOf(0)
 
+    /** The page URL (without #fragment) the current [media] list belongs to. */
+    var mediaPage: String = ""
     var defaultUserAgent: String = ""
     var lastHistoryUrl: String? = null
 }

@@ -32,6 +32,10 @@ interface DownloadDao {
     @Query("UPDATE downloads SET status = :status, error = :error, errorDetail = :detail, speedBps = 0 WHERE id = :id")
     suspend fun setStatus(id: Long, status: DownloadStatus, error: DownloadError?, detail: String?)
 
+    /** Atomically moves QUEUED -> DOWNLOADING. Returns 0 if a pause/cancel/delete got there first, so no zombie transfer starts. */
+    @Query("UPDATE downloads SET status = 'DOWNLOADING', error = NULL, errorDetail = NULL, speedBps = 0 WHERE id = :id AND status = 'QUEUED'")
+    suspend fun claim(id: Long): Int
+
     /** Only changes rows still QUEUED/DOWNLOADING, so a late pause can't overwrite COMPLETED. */
     @Query("UPDATE downloads SET status = :status, error = :error, errorDetail = :detail, speedBps = 0 WHERE id = :id AND status IN ('QUEUED','DOWNLOADING')")
     suspend fun setStatusIfActive(id: Long, status: DownloadStatus, error: DownloadError?, detail: String?)

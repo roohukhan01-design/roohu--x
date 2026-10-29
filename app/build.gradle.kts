@@ -13,8 +13,8 @@ android {
         applicationId = "com.roohu.roohux"
         minSdk = 29 // MediaStore.Downloads: no broad storage permission needed
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "0.4.0"
     }
 
     buildTypes {
@@ -68,4 +68,6 @@ dependencies {
     implementation("com.google.guava:guava:33.3.1-android")
 
     testImplementation("junit:junit:4.13.2")
+    // android.jar only has stubs of org.json; unit tests need the real implementation.
+    testImplementation("org.json:json:20231013")
 }

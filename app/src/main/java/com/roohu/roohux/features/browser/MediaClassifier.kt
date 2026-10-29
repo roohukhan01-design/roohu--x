@@ -9,8 +9,8 @@ data class DetectedMedia(val url: String, val kind: MediaKind, val name: String)
 
 /** Classifies direct media URLs and sources explicitly attached to HTML media elements. */
 object MediaClassifier {
-    val VIDEO_EXT = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp")
-    val AUDIO_EXT = setOf("mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac")
+    val VIDEO_EXT = setOf("mp4", "webm", "mkv", "mov", "m4v", "3gp", "avi", "flv", "wmv", "mpg", "mpeg")
+    val AUDIO_EXT = setOf("mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac", "weba", "wma")
     private val PLAYLIST_EXT = setOf("m3u8", "mpd")
 
     fun extensionOf(name: String): String = name.substringAfterLast('.', "").lowercase()
@@ -76,5 +76,58 @@ object MediaClassifier {
         val pathName = http.pathSegments.lastOrNull().orEmpty()
         val safeName = FileNames.sanitize(pathName.substringBefore('?').ifBlank { fallback }, fallback)
         return DetectedMedia(url, kind, safeName)
+    }
+
+    /** One URL = one entry, whatever the #fragment (players often append #t=0.1). */
+    fun dedupeKey(url: String): String = url.substringBefore('#')
+
+    /**
+     * The server's Content-Type is stronger evidence than a guess from the page. Returns the corrected kind,
+     * or null when the response is an ordinary web page (callers must hide the download action then).
+     */
+    fun refineByContentType(current: MediaKind, contentType: String?): MediaKind? {
+        val t = contentType?.substringBefore(';')?.trim()?.lowercase().orEmpty()
+        return when {
+            t.isEmpty() -> current
+            t == "text/html" || t == "application/xhtml+xml" || t.contains("yt-ump") -> null
+            t.contains("mpegurl") || t == "application/dash+xml" -> MediaKind.STREAM_PLAYLIST
+            current == MediaKind.BLOB -> current
+            t.startsWith("video/") -> MediaKind.DIRECT_VIDEO
+            t.startsWith("audio/") -> MediaKind.DIRECT_AUDIO
+            else -> current
+        }
+    }
+
+    /** True when the page the report came from is still the tab's page (ignores #fragment). */
+    fun samePage(a: String?, b: String?): Boolean =
+        a != null && b != null && a.substringBefore('#') == b.substringBefore('#')
+
+    data class ScanReport(val page: String, val items: List<DetectedMedia>, val drm: Boolean)
+
+    /**
+     * Parses what the in-page watcher script reports: {"p": pageUrl, "m": [{u,t,d}], "r": [resourceUrls]}.
+     * Everything is re-classified natively; the page's claims are never trusted beyond "this URL is on an element".
+     */
+    fun parseScanReport(json: String): ScanReport? = try {
+        val root = org.json.JSONObject(json)
+        val page = root.optString("p")
+        val found = LinkedHashMap<String, DetectedMedia>()
+        var drm = false
+        val m = root.optJSONArray("m")
+        if (m != null) for (i in 0 until minOf(m.length(), 50)) {
+            val o = m.optJSONObject(i) ?: continue
+            if (o.optBoolean("d")) drm = true
+            val u = o.optString("u")
+            if (u.isEmpty()) continue
+            classifyElement(u, o.optString("t"))?.let { found.putIfAbsent(dedupeKey(it.url), it) }
+        }
+        val r = root.optJSONArray("r")
+        if (r != null) for (i in 0 until minOf(r.length(), 200)) {
+            val u = r.optString(i)
+            if (u.isNotEmpty()) classify(u)?.let { found.putIfAbsent(dedupeKey(it.url), it) }
+        }
+        ScanReport(page, found.values.toList(), drm)
+    } catch (e: Exception) {
+        null
     }
 }

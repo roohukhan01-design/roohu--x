@@ -120,7 +120,7 @@ fun MediaSheet(manager: BrowserManager, tab: BrowserTab, onDismiss: () -> Unit) 
                     )
                 }
             }
-            if (tab.media.isEmpty()) Text("No downloadable media was found. Detection only sees media the page exposes to the browser.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (tab.media.isEmpty()) Text("No media found yet. Start playback on the page — RoohuX checks again when the source changes. Detection only sees media the page exposes to the browser.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(tab.media, key = { it.url }) { m ->
                     LaunchedEffect(m.url) {
@@ -136,7 +136,10 @@ fun MediaSheet(manager: BrowserManager, tab: BrowserTab, onDismiss: () -> Unit) 
 }
 
 @Composable
-private fun MediaRow(m: DetectedMedia, probe: MediaProbe?, onDownload: () -> Unit, onPlay: () -> Unit) {
+private fun MediaRow(original: DetectedMedia, probe: MediaProbe?, onDownload: () -> Unit, onPlay: () -> Unit) {
+    // The server's Content-Type (once probed) overrides the page-based guess, e.g. an extensionless URL that is really HLS.
+    val refined = MediaClassifier.refineByContentType(original.kind, probe?.contentType)
+    val m = if (refined != null) original.copy(kind = refined) else original
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(m.name, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)

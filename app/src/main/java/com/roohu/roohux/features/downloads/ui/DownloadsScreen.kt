@@ -4,6 +4,16 @@ import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.roohu.roohux.core.design.Ember
+import com.roohu.roohux.core.design.EmberBrush
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,21 +37,30 @@ import com.roohu.roohux.core.design.formatEta
 import com.roohu.roohux.core.design.formatSpeed
 import com.roohu.roohux.core.storage.FileInfo
 
+private enum class DownloadFilter(val label: String) { ALL("All"), ACTIVE("Active"), DONE("Completed"), PROBLEMS("Failed") }
+
+private fun DownloadFilter.matches(d: DownloadEntity): Boolean = when (this) {
+    DownloadFilter.ALL -> true
+    DownloadFilter.ACTIVE -> d.status == DownloadStatus.QUEUED || d.status == DownloadStatus.DOWNLOADING || d.status == DownloadStatus.PAUSED
+    DownloadFilter.DONE -> d.status == DownloadStatus.COMPLETED
+    DownloadFilter.PROBLEMS -> d.status == DownloadStatus.FAILED || d.status == DownloadStatus.CANCELED
+}
+
 @Composable
 fun DownloadsScreen(vm: DownloadsViewModel, modifier: Modifier = Modifier) {
     val list by vm.downloads.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pendingDelete by remember { mutableStateOf<DownloadEntity?>(null) }
+    var filter by rememberSaveable { mutableStateOf(DownloadFilter.ALL) }
 
     if (list.isEmpty()) {
-        Box(modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-            Text(
-                "No downloads yet.\nPaste a direct file link on the Home tab, or download from the browser.",
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        EmptyState(
+            modifier,
+            title = "Nothing downloaded yet",
+            body = "Open a page with a video or audio file in the browser, or paste a direct file link on Home. Downloads show up here with live progress.",
+        )
     } else {
+        val shown = list.filter { filter.matches(it) }
         LazyColumn(
             modifier.fillMaxSize(),
             contentPadding = PaddingValues(Spacing.l),
@@ -49,13 +68,27 @@ fun DownloadsScreen(vm: DownloadsViewModel, modifier: Modifier = Modifier) {
         ) {
             item {
                 Text("Downloads", style = MaterialTheme.typography.headlineSmall)
-                val saved = list.filter { it.status == DownloadStatus.COMPLETED }.sumOf { it.downloadedBytes }
+                val done = list.filter { it.status == DownloadStatus.COMPLETED }
                 Text(
-                    "${list.count { it.status == DownloadStatus.COMPLETED }} saved · ${formatBytes(saved)}",
+                    "${done.size} saved · ${formatBytes(done.sumOf { it.downloadedBytes })}",
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(Spacing.s))
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                    DownloadFilter.entries.forEach { f ->
+                        val n = list.count { f.matches(it) }
+                        FilterChip(
+                            selected = filter == f,
+                            onClick = { filter = f },
+                            label = { Text(if (f == DownloadFilter.ALL) f.label else "${f.label} $n") },
+                        )
+                    }
+                }
             }
-            items(list, key = { it.id }) { d -> DownloadCard(d, vm, context) { pendingDelete = d } }
+            if (shown.isEmpty()) {
+                item { Text("No ${filter.label.lowercase()} downloads.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = Spacing.xl)) }
+            }
+            items(shown, key = { it.id }) { d -> DownloadCard(d, vm, context) { pendingDelete = d } }
         }
     }
 
@@ -105,6 +138,7 @@ private fun DownloadCard(d: DownloadEntity, vm: DownloadsViewModel, context: Con
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            StatusBadge(d.status)
         }
         Spacer(Modifier.height(Spacing.m))
         StatusBlock(d)
@@ -180,10 +214,15 @@ private fun StatusBlock(d: DownloadEntity) {
                 val fraction = (d.downloadedBytes.toFloat() / d.totalBytes).coerceIn(0f, 1f)
                 val animated by animateFloatAsState(fraction, label = "progress")
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-                    LinearProgressIndicator(progress = { animated }, modifier = Modifier.weight(1f))
+                    LinearProgressIndicator(
+                        progress = { animated },
+                        modifier = Modifier.weight(1f).semantics { contentDescription = "Download progress ${(fraction * 100).toInt()} percent" },
+                        color = Ember,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
                     Text("${(fraction * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
                 }
-            } else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Ember, trackColor = MaterialTheme.colorScheme.surfaceContainerHighest)
             val parts = buildList {
                 add("${formatBytes(d.downloadedBytes)} / ${formatBytes(d.totalBytes)}")
                 if (d.speedBps > 0) add(formatSpeed(d.speedBps))
@@ -200,5 +239,40 @@ private fun StatusBlock(d: DownloadEntity) {
             d.errorDetail?.let { Text("Details: $it", color = sub, style = MaterialTheme.typography.bodySmall) }
             if (d.resumable == 1 && d.downloadedBytes > 0) Text("Retry will continue from ${formatBytes(d.downloadedBytes)}.", color = sub, style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+@Composable
+private fun StatusBadge(status: DownloadStatus) {
+    val scheme = MaterialTheme.colorScheme
+    val (label, color, icon) = when (status) {
+        DownloadStatus.QUEUED -> Triple("Waiting", scheme.onSurfaceVariant, Icons.Default.Schedule)
+        DownloadStatus.DOWNLOADING -> Triple("Downloading", scheme.primary, Icons.Default.Download)
+        DownloadStatus.PAUSED -> Triple("Paused", scheme.secondary, Icons.Default.Schedule)
+        DownloadStatus.COMPLETED -> Triple("Done", scheme.tertiary, Icons.Default.CheckCircle)
+        DownloadStatus.FAILED -> Triple("Failed", scheme.error, Icons.Default.Error)
+        DownloadStatus.CANCELED -> Triple("Cancelled", scheme.onSurfaceVariant, Icons.Default.Error)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+    }
+}
+
+@Composable
+private fun EmptyState(modifier: Modifier, title: String, body: String) {
+    Column(
+        modifier.fillMaxSize().padding(Spacing.xxl),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(72.dp).background(EmberBrush, RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Default.Download, contentDescription = null, tint = Color(0xFF2A1A00), modifier = Modifier.size(34.dp)) }
+        Spacer(Modifier.height(Spacing.l))
+        Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(Spacing.s))
+        Text(body, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

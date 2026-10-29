@@ -5,6 +5,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,10 +24,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Installs Gradle 8.9 (no wrapper jar is committed) and caches dependencies.
+      # No Gradle wrapper jar is committed: install Gradle 8.9 (required by AGP 8.7) and cache dependencies.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+
+      - name: Unit tests
+        id: tests
+        continue-on-error: true
+        run: gradle :app:testDebugUnitTest --stacktrace
 
       - name: Assemble debug APK
         run: gradle :app:assembleDebug --stacktrace
@@ -42,6 +54,17 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-      # Runs after the APK upload so a failing unit test never hides the APK, but still turns the run red.
-      - name: Unit tests
-        run: gradle :app:testDebugUnitTest --stacktrace
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoohuX-unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+
+      # The APK is always built and uploaded first; a failing test still turns the run red here.
+      - name: Fail if unit tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "::error::Unit tests failed (see the RoohuX-unit-test-report artifact)"
+          exit 1

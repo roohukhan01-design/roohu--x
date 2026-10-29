@@ -2,7 +2,7 @@
 
 Android download manager (Kotlin, Jetpack Compose, Room, DataStore, OkHttp). **Developer:** Roohu · **Support:** roohukhan01@gmail.com
 
-Kotlin + Jetpack Compose app (v0.3.0 redesign) combining a download manager, a browser with media detection, a Media3 player and an offline library.
+Kotlin + Jetpack Compose app (v0.4.0) combining a download manager, a browser with media detection, a Media3 player and an offline library.
 
 ## Build
 
@@ -12,7 +12,7 @@ package `com.roohu.roohux`, uploads it, then runs unit tests. No Gradle wrapper 
 Locally: JDK 17 + Android SDK 35, then `gradle :app:assembleDebug` (or `gradle wrapper` first).
 
 ## Status
-See **DEVELOPMENT_PROGRESS.md** for the full, honest status. In short: v0.2.0 adds a browser, media detection, Media3 player, library and a premium UI on top of the download engine. **None of it has been compiled or run yet.**
+See **DEVELOPMENT_PROGRESS.md** for the full, honest status. In short: v0.2.0 adds a browser, media detection, Media3 player, library and a premium UI on top of the download engine. **None of it has been compiled or run yet — the first GitHub Actions run is the first real build.**
 
 ## Manual test checklist (to run on a device)
 

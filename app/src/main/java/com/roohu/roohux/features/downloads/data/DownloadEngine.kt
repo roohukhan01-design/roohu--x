@@ -11,7 +11,8 @@ import com.roohu.roohux.core.database.DownloadDao
 import com.roohu.roohux.core.database.DownloadEntity
 import com.roohu.roohux.core.database.DownloadError
 import com.roohu.roohux.core.database.DownloadStatus
-import com.roohu.roohux.core.network.ContentRange
+import com.roohu.roohux.core.network.RangeOutcome
+import com.roohu.roohux.core.network.RangePolicy
 import com.roohu.roohux.core.settings.SettingsRepository
 import com.roohu.roohux.core.storage.FileNames
 import com.roohu.roohux.services.download.DownloadNotifier
@@ -28,6 +29,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okio.GzipSource
+import okio.buffer
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -61,17 +64,19 @@ class DownloadEngine(
 
     /** Runs until the download completes, fails, or the calling coroutine is cancelled (pause/cancel). */
     suspend fun run(id: Long) {
+        if (dao.claim(id) == 0) return // cancelled/paused/deleted while waiting in the queue
         val item = dao.get(id) ?: return
         val part = partFile(id)
-        dao.setStatus(id, DownloadStatus.DOWNLOADING, null, null)
         try {
             if (settings.settings.first().wifiOnly && !isUnmetered()) throw DownloadException(DownloadError.WIFI_REQUIRED)
             var attempt = 0
+            var cleanRestarts = 0
             while (true) {
                 try {
                     transfer(item, part)
                     break
                 } catch (e: DownloadException) {
+                    if (e.restartClean && cleanRestarts < MAX_CLEAN_RESTARTS) { cleanRestarts++; continue } // partial was discarded: start over now
                     if (!e.retryable || attempt >= MAX_RETRIES) throw e
                 } catch (e: IOException) {
                     currentCoroutineContext().ensureActive()
@@ -135,16 +140,19 @@ class DownloadEngine(
 
     private suspend fun receive(item: DownloadEntity, latest: DownloadEntity, resp: Response, part: File, existing: Long) {
         val code = resp.code
-        if (code == 416 && existing > 0) {
-            val serverTotal = Regex("bytes\\s+\\*/(\\d+)").find(resp.header("Content-Range") ?: "")
-                ?.groupValues?.get(1)?.toLongOrNull()
-            if (serverTotal != null && serverTotal == existing) {
-                // Everything is already on disk (e.g. we were interrupted while publishing): just publish it.
-                dao.setProgress(item.id, existing, existing, 0)
-                return
+        if (code == 416) {
+            when (val o = RangePolicy.evaluate(416, existing, resp.header("Content-Range"), -1)) {
+                RangeOutcome.AlreadyComplete -> {
+                    // Everything is already on disk (e.g. we were interrupted while publishing): just publish it.
+                    dao.setProgress(item.id, existing, existing, 0)
+                    return
+                }
+                is RangeOutcome.DiscardAndRetry -> {
+                    cleanup(item.id)
+                    throw DownloadException(DownloadError.CONNECTION_LOST, o.reason, retryable = true, restartClean = true)
+                }
+                else -> throw httpError(code)
             }
-            part.delete()
-            throw DownloadException(DownloadError.CONNECTION_LOST, "Range not satisfiable; restarting", retryable = true)
         }
         if (code !in 200..299) throw httpError(code)
         val body = resp.body ?: throw DownloadException(DownloadError.SERVER_REJECTED, "Empty response")
@@ -169,22 +177,34 @@ class DownloadEngine(
             throw DownloadException(DownloadError.NOT_A_FILE, detail)
         }
 
+        val encoding = resp.header("Content-Encoding")?.trim()?.lowercase()
+        val gzipped = encoding == "gzip" || encoding == "x-gzip"
+        if (encoding != null && encoding != "identity" && !gzipped) {
+            throw DownloadException(DownloadError.SERVER_REJECTED, "Unsupported content encoding: $encoding")
+        }
+        // We asked for identity; if a server compressed anyway the byte counts describe the compressed form,
+        // so the size can't be verified and the transfer can't be resumed. We decompress so the file is usable.
+        val contentLength = if (gzipped) -1L else body.contentLength()
         var start = existing
         val total: Long
         val resumable: Boolean
-        if (code == 206) {
-            val range = ContentRange.parse(resp.header("Content-Range"))
-            if (range == null || range.start != existing) {
-                part.delete()
-                throw DownloadException(DownloadError.CONNECTION_LOST, "Unexpected range response", retryable = true)
+        when (val outcome = RangePolicy.evaluate(code, existing, resp.header("Content-Range"), contentLength)) {
+            is RangeOutcome.Continue -> {
+                if (gzipped) { cleanup(item.id); throw DownloadException(DownloadError.CONNECTION_LOST, "Compressed partial response", retryable = true, restartClean = true) }
+                total = outcome.total
+                resumable = true
             }
-            val bodyLen = body.contentLength()
-            total = range.total ?: if (bodyLen > 0) existing + bodyLen else -1L
-            resumable = true
-        } else {
-            if (existing > 0) { part.delete(); start = 0 } // server ignored Range: start over
-            total = body.contentLength()
-            resumable = total > 0 && resp.header("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true
+            is RangeOutcome.FromStart -> {
+                // 200 (fresh, or the server ignored Range / the file changed): never append, start over.
+                if (existing > 0) { part.delete(); start = 0 }
+                total = outcome.total
+                resumable = !gzipped && total > 0 && resp.header("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true
+            }
+            is RangeOutcome.DiscardAndRetry -> {
+                cleanup(item.id)
+                throw DownloadException(DownloadError.CONNECTION_LOST, outcome.reason, retryable = true, restartClean = true)
+            }
+            else -> throw DownloadException(DownloadError.SERVER_REJECTED, "HTTP $code")
         }
 
         val fresh = start == 0L
@@ -201,8 +221,9 @@ class DownloadEngine(
             if (ctype != null && (ctype == "text/html" || ctype == "application/xhtml+xml") && ext !in HTML_EXT) {
                 throw DownloadException(DownloadError.NOT_A_FILE, ctype)
             }
-            // Keep the name (and its extension) exactly as the website/server gave it; MIME is stored separately.
-            name = determined
+            // Keep an ordinary extension the server chose; complete a missing/script extension from a specific MIME
+            // type so extensionless media URLs still produce a file other apps can open.
+            name = FileNames.ensureExtension(determined, mime)
         } else {
             name = latest.fileName
             mime = latest.mimeType ?: OCTET
@@ -228,7 +249,8 @@ class DownloadEngine(
         var speed = 0L
         FileOutputStream(part, start > 0).use { out ->
             val buf = ByteArray(BUFFER)
-            body.byteStream().use { input ->
+            val source = if (gzipped) GzipSource(body.source()).buffer() else body.source()
+            source.inputStream().use { input ->
                 while (true) {
                     currentCoroutineContext().ensureActive()
                     val n = input.read(buf)
@@ -275,6 +297,10 @@ class DownloadEngine(
         if (e.totalBytes > 0 && part.length() != e.totalBytes) {
             cleanup(id) // never publish a truncated/oversized file; Retry starts clean
             throw DownloadException(DownloadError.INTEGRITY, "Expected ${e.totalBytes} bytes, found ${part.length()}")
+        }
+        // Publishing copies the file, so the volume briefly holds two copies. Keep the partial so Retry can publish later.
+        if (part.length() + PUBLISH_MARGIN > (part.parentFile?.usableSpace ?: Long.MAX_VALUE)) {
+            throw DownloadException(DownloadError.INSUFFICIENT_STORAGE, "Not enough free space to save the finished file")
         }
         val resolver = context.contentResolver
         val values = ContentValues().apply {
@@ -336,9 +362,11 @@ class DownloadEngine(
 
     private companion object {
         const val MAX_RETRIES = 3
+        const val MAX_CLEAN_RESTARTS = 2
         const val BUFFER = 64 * 1024
         const val TICK_NS = 500_000_000L
         const val SPACE_MARGIN = 8L * 1024 * 1024
+        const val PUBLISH_MARGIN = 1L * 1024 * 1024
         const val OCTET = "application/octet-stream"
         val HTML_EXT = setOf("htm", "html", "xhtml")
         const val DEFAULT_USER_AGENT = "Mozilla/5.0 (Linux; Android 14) RoohuX/0.1"

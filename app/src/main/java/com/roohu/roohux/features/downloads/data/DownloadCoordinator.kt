@@ -23,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-data class EnqueueResult(val id: Long, val alreadyExists: Boolean)
+data class EnqueueResult(val id: Long, val alreadyExists: Boolean, val rejected: Boolean = false)
 
 /** Owns the queue: starts up to N downloads at once and handles pause/resume/cancel/retry/delete. */
 class DownloadCoordinator(
@@ -41,6 +41,11 @@ class DownloadCoordinator(
     suspend fun enqueue(url: String, referer: String? = null, userAgent: String? = null): EnqueueResult =
         enqueueLock.withLock {
             val downloadUrl = normalizeKnownFileShareUrl(url)
+            val scheme = downloadUrl.toHttpUrlOrNull()?.scheme
+            if (scheme != "http" && scheme != "https") {
+                // blob:, data:, file: etc. can't be fetched by the download engine; never create a doomed entry.
+                return@withLock EnqueueResult(-1L, alreadyExists = false, rejected = true)
+            }
             val open = dao.findOpenByUrl(downloadUrl)
             if (open != null) {
                 if (open.status == DownloadStatus.PAUSED) resume(open.id)
