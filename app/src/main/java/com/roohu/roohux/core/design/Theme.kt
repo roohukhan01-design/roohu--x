@@ -13,10 +13,10 @@ import com.roohu.roohux.core.settings.ThemeMode
 
 // Brand "Ember": cinematic near-black, one amber accent that runs into ember-orange only for brand moments
 // (icon, progress, primary actions). Matches the launcher icon.
-val EmberBrush = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFFC76A), Ember))
 val Ink = Color(0xFF0A0B0F)
 val Accent = Color(0xFFFFB347)
 val Ember = Color(0xFFFF6A3D)
+val EmberBrush = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFFC76A), Ember))
 val AccentDeep = Color(0xFFC77D12)
 val Teal = Color(0xFF6FD6C4)
 
